@@ -1,0 +1,410 @@
+{% extends 'base.html' %}
+{% load humanize %} 
+
+{% block title %}Registrar Nova Venda{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h1 class="h3 mb-3">Registrar Nova Venda</h1>
+                
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    {% if cliente_form.non_field_errors or venda_form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        <strong>Ocorreram erros ao salvar:</strong>
+                        {{ cliente_form.non_field_errors }}
+                        {{ venda_form.non_field_errors }}
+                    </div>
+                    {% endif %}
+                    
+                    <h5 class="mt-4">Dados do Cliente</h5>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ cliente_form.cpf_cnpj.id_for_label }}" class="form-label">CPF/CNPJ</label>
+                            {{ cliente_form.cpf_cnpj }}
+                            <div id="cpf-feedback" class="form-text"></div>
+                            {% if cliente_form.cpf_cnpj.errors %}<div class="invalid-feedback d-block">{{ cliente_form.cpf_cnpj.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label for="{{ cliente_form.nome_completo.id_for_label }}" class="form-label">Nome Completo / Razão Social</label>
+                            {{ cliente_form.nome_completo }}
+                            {% if cliente_form.nome_completo.errors %}<div class="invalid-feedback d-block">{{ cliente_form.nome_completo.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="row">
+                         <div class="col-md-6 mb-3">
+                            <label for="{{ cliente_form.email.id_for_label }}" class="form-label">E-mail</label>
+                            {{ cliente_form.email }}
+                            {% if cliente_form.email.errors %}<div class="invalid-feedback d-block">{{ cliente_form.email.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ cliente_form.telefone.id_for_label }}" class="form-label">Telefone</label>
+                            {{ cliente_form.telefone }}
+                            {% if cliente_form.telefone.errors %}<div class="invalid-feedback d-block">{{ cliente_form.telefone.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <h6 class="mt-3">Endereço</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ cliente_form.cep.id_for_label }}" class="form-label">CEP</label>
+                            {{ cliente_form.cep }}
+                            <div id="cep-feedback" class="form-text"></div>
+                            {% if cliente_form.cep.errors %}<div class="invalid-feedback d-block">{{ cliente_form.cep.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label for="{{ cliente_form.endereco.id_for_label }}" class="form-label">Endereço (Rua, Av.)</label>
+                            {{ cliente_form.endereco }}
+                            {% if cliente_form.endereco.errors %}<div class="invalid-feedback d-block">{{ cliente_form.endereco.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="row">
+                         <div class="col-md-4 mb-3">
+                            <label for="{{ cliente_form.numero.id_for_label }}" class="form-label">Número</label>
+                            {{ cliente_form.numero }}
+                            {% if cliente_form.numero.errors %}<div class="invalid-feedback d-block">{{ cliente_form.numero.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label for="{{ cliente_form.complemento.id_for_label }}" class="form-label">Complemento (Opcional)</label>
+                            {{ cliente_form.complemento }}
+                            {% if cliente_form.complemento.errors %}<div class="invalid-feedback d-block">{{ cliente_form.complemento.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="row">
+                         <div class="col-md-5 mb-3">
+                            <label for="{{ cliente_form.bairro.id_for_label }}" class="form-label">Bairro</label>
+                            {{ cliente_form.bairro }}
+                            {% if cliente_form.bairro.errors %}<div class="invalid-feedback d-block">{{ cliente_form.bairro.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-5 mb-3">
+                            <label for="{{ cliente_form.cidade.id_for_label }}" class="form-label">Cidade</label>
+                            {{ cliente_form.cidade }}
+                            {% if cliente_form.cidade.errors %}<div class="invalid-feedback d-block">{{ cliente_form.cidade.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label for="{{ cliente_form.estado.id_for_label }}" class="form-label">UF</label>
+                            {{ cliente_form.estado }}
+                            {% if cliente_form.estado.errors %}<div class="invalid-feedback d-block">{{ cliente_form.estado.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div id="blocoResponsavelPJ" style="display: none;">
+                        <h5 class="mt-4 text-muted">Dados do Responsável (PF)</h5>
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label for="{{ cliente_form.responsavel_nome.id_for_label }}" class="form-label">Nome do Responsável</label>
+                                {{ cliente_form.responsavel_nome }}
+                                {% if cliente_form.responsavel_nome.errors %}<div class="invalid-feedback d-block">{{ cliente_form.responsavel_nome.errors.as_text }}</div>{% endif %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ cliente_form.responsavel_cpf.id_for_label }}" class="form-label">CPF do Responsável</label>
+                                {{ cliente_form.responsavel_cpf }}
+                                {% if cliente_form.responsavel_cpf.errors %}<div class="invalid-feedback d-block">{{ cliente_form.responsavel_cpf.errors.as_text }}</div>{% endif %}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ cliente_form.responsavel_email.id_for_label }}" class="form-label">E-mail do Responsável</label>
+                            {{ cliente_form.responsavel_email }}
+                            {% if cliente_form.responsavel_email.errors %}<div class="invalid-feedback d-block">{{ cliente_form.responsavel_email.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+                    
+                    <h5 class="mt-4">Dados da Venda</h5>
+                    <div class="mb-3">
+                        <label for="{{ venda_form.produto.id_for_label }}" class="form-label">{{ venda_form.produto.label }}</label>
+                        {{ venda_form.produto }}
+                        {% if venda_form.produto.errors %}<div class="invalid-feedback d-block">{{ venda_form.produto.errors.as_text }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ venda_form.forma_pagamento.label_tag }}
+                        {{ venda_form.forma_pagamento }}
+                        {% if venda_form.forma_pagamento.errors %}<div class="invalid-feedback d-block">{{ venda_form.forma_pagamento.errors.as_text }}</div>{% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ venda_form.honorarios.label_tag }}
+                        <input type="text" 
+                               name="{{ venda_form.honorarios.name }}" 
+                               id="{{ venda_form.honorarios.id_for_label }}" 
+                               class="form-control bg-light" 
+                               readonly>
+                        {% if venda_form.honorarios.errors %}<div class="invalid-feedback d-block">{{ venda_form.honorarios.errors.as_text }}</div>{% endif %}
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ venda_form.valor_entrada.label_tag }}
+                            {{ venda_form.valor_entrada }}
+                            {% if venda_form.valor_entrada.errors %}<div class="invalid-feedback d-block">{{ venda_form.valor_entrada.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ venda_form.num_parcelas.label_tag }}
+                            {{ venda_form.num_parcelas }}
+                            {% if venda_form.num_parcelas.errors %}<div class="invalid-feedback d-block">{{ venda_form.num_parcelas.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ venda_form.valor_parcela.label_tag }}
+                            {{ venda_form.valor_parcela }}
+                            {% if venda_form.valor_parcela.errors %}<div class="invalid-feedback d-block">{{ venda_form.valor_parcela.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ venda_form.valor_exito.label_tag }}
+                            {{ venda_form.valor_exito }}
+                            {% if venda_form.valor_exito.errors %}<div class="invalid-feedback d-block">{{ venda_form.valor_exito.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ venda_form.valor_aporte.label_tag }}
+                            {{ venda_form.valor_aporte }}
+                            {% if venda_form.valor_aporte.errors %}<div class="invalid-feedback d-block">{{ venda_form.valor_aporte.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ venda_form.observacoes.label_tag }}
+                        {{ venda_form.observacoes }}
+                        {% if venda_form.observacoes.errors %}<div class="invalid-feedback d-block">{{ venda_form.observacoes.errors.as_text }}</div>{% endif %}
+                    </div>
+
+                    <h5 class="mt-4">Comprovante de Pagamento</h5>
+                    <div class="mb-3">
+                        <label for="{{ anexo_form.arquivo.id_for_label }}" class="form-label">{{ anexo_form.arquivo.label }}</label>
+                        {{ anexo_form.arquivo }}
+                        {% if anexo_form.arquivo.errors %}<div class="invalid-feedback d-block">{{ anexo_form.arquivo.errors.as_text }}</div>{% endif %}
+                    </div>
+                    
+                    <hr class="my-4">
+                    <div class="d-flex justify-content-end">
+                        <a href="{% url 'dashboard' %}" class="btn btn-secondary me-2">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            Salvar Venda
+                        </button>
+                    </div>
+                </form>
+                
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/autonumeric/4.6.0/autoNumeric.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // --- Seletores dos campos do Cliente ---
+    const clienteFields = {
+        nome: document.getElementById('{{ cliente_form.nome_completo.id_for_label }}'),
+        email: document.getElementById('{{ cliente_form.email.id_for_label }}'),
+        telefone: document.getElementById('{{ cliente_form.telefone.id_for_label }}'),
+        cep: document.getElementById('{{ cliente_form.cep.id_for_label }}'),
+        endereco: document.getElementById('{{ cliente_form.endereco.id_for_label }}'),
+        numero: document.getElementById('{{ cliente_form.numero.id_for_label }}'),
+        complemento: document.getElementById('{{ cliente_form.complemento.id_for_label }}'),
+        bairro: document.getElementById('{{ cliente_form.bairro.id_for_label }}'),
+        cidade: document.getElementById('{{ cliente_form.cidade.id_for_label }}'),
+        estado: document.getElementById('{{ cliente_form.estado.id_for_label }}'),
+        resp_nome: document.getElementById('{{ cliente_form.responsavel_nome.id_for_label }}'),
+        resp_cpf: document.getElementById('{{ cliente_form.responsavel_cpf.id_for_label }}'),
+        resp_email: document.getElementById('{{ cliente_form.responsavel_email.id_for_label }}')
+    };
+    const cpfInput = document.getElementById('{{ cliente_form.cpf_cnpj.id_for_label }}');
+    const cpfFeedback = document.getElementById('cpf-feedback');
+    const cepFeedback = document.getElementById('cep-feedback');
+    const blocoResponsavelPJ = document.getElementById('blocoResponsavelPJ'); 
+
+    // --- Funções Helper (Leitura/Limpeza de campos) ---
+    function setClienteFieldsReadOnly(isReadOnly) {
+        for (const key in clienteFields) {
+            if (clienteFields[key] && key !== 'numero' && key !== 'complemento') {
+                clienteFields[key].readOnly = isReadOnly;
+                if(isReadOnly) { clienteFields[key].classList.add('bg-light'); } 
+                else { clienteFields[key].classList.remove('bg-light'); }
+            }
+        }
+        if(clienteFields.numero) clienteFields.numero.readOnly = false;
+        if(clienteFields.complemento) clienteFields.complemento.readOnly = false;
+    }
+    function clearClienteFields(clearCpf = false, clearNome = false) {
+        if (clearCpf && cpfInput) cpfInput.value = '';
+        if (clearNome && clienteFields.nome) clienteFields.nome.value = '';
+        for (const key in clienteFields) {
+            if (key !== 'nome' && key !== 'cpf_cnpj') {
+                if (clienteFields[key]) clienteFields[key].value = '';
+            }
+        }
+    }
+    
+    // --- Bloco de Máscara de Moeda (ATUALIZADO) ---
+    const currencyOptions = {
+        currencySymbol: 'R$ ', decimalCharacter: ',', digitGroupSeparator: '.',
+        decimalPlaces: 2, minimumValue: '0', unformatOnSubmit: true
+    };
+    const honorariosInput = document.getElementById('{{ venda_form.honorarios.id_for_label }}');
+    const entradaInput = document.getElementById('{{ venda_form.valor_entrada.id_for_label }}');
+    const parcelasInput = document.getElementById('{{ venda_form.num_parcelas.id_for_label }}'); 
+    const valorParcelaInput = document.getElementById('{{ venda_form.valor_parcela.id_for_label }}');
+    const valorExitoInput = document.getElementById('{{ venda_form.valor_exito.id_for_label }}');
+    const valorAporteInput = document.getElementById('{{ venda_form.valor_aporte.id_for_label }}'); // NOVO
+    
+    const anHonorarios = new AutoNumeric(honorariosInput, currencyOptions);
+    const anEntrada = new AutoNumeric(entradaInput, currencyOptions);
+    const anValorParcela = new AutoNumeric(valorParcelaInput, currencyOptions);
+    const anExito = new AutoNumeric(valorExitoInput, currencyOptions);
+    const anAporte = new AutoNumeric(valorAporteInput, currencyOptions); // NOVO
+
+    // --- Bloco Recalcular Honorários (ATUALIZADO) ---
+    function recalcularHonorarios() {
+        const entrada = anEntrada.getNumber() || 0;
+        const parcelas = parseFloat(parcelasInput.value) || 0;
+        const valorParcela = anValorParcela.getNumber() || 0;
+        const exito = anExito.getNumber() || 0; // NOVO
+        // 'aporte' não entra no cálculo
+        
+        const total = entrada + (parcelas * valorParcela) + exito; // ATUALIZADO
+        
+        anHonorarios.set(total);
+    }
+    entradaInput.addEventListener('input', recalcularHonorarios);
+    parcelasInput.addEventListener('input', recalcularHonorarios);
+    valorParcelaInput.addEventListener('input', recalcularHonorarios);
+    valorExitoInput.addEventListener('input', recalcularHonorarios); // NOVO
+    // 'aporte' não recalcula
+    
+    // --- Bloco de Preenchimento (API do Produto) (ATUALIZADO) ---
+    const produtoSelect = document.getElementById('{{ venda_form.produto.id_for_label }}');
+    produtoSelect.addEventListener('change', function() {
+        const produtoId = this.value;
+        if (produtoId) {
+            fetch(`/api/get_produto_data/${produtoId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    // anHonorarios.set(data.honorarios || ''); // Não preenchemos mais
+                    anEntrada.set(data.valor_entrada || '');
+                    parcelasInput.value = data.num_parcelas || '';
+                    anValorParcela.set(data.valor_parcela || '');
+                    anExito.set(data.valor_exito || '');
+                    anAporte.set(data.valor_aporte || ''); // NOVO
+                    recalcularHonorarios(); // Recalcula o total
+                })
+                .catch(error => { console.error('Erro ao buscar dados do produto:', error); });
+        } else {
+            anEntrada.set('');
+            parcelasInput.value = '';
+            anValorParcela.set('');
+            anExito.set('');
+            anAporte.set(''); // NOVO
+            recalcularHonorarios(); // Recalcula (irá zerar)
+        }
+    });
+    
+    // --- Listener da API de CEP ---
+    if (clienteFields.cep) {
+        clienteFields.cep.addEventListener('blur', function() {
+            const cep = this.value.replace(/\D/g, ''); 
+            if (cep.length === 8) {
+                cepFeedback.textContent = 'Buscando CEP...';
+                cepFeedback.classList.remove('text-danger');
+                fetch(`https://viacep.com.br/ws/${cep}/json/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.erro) {
+                            cepFeedback.textContent = 'CEP não encontrado.';
+                            cepFeedback.classList.add('text-danger');
+                        } else {
+                            cepFeedback.textContent = '';
+                            if(data.logradouro) clienteFields.endereco.value = data.logradouro;
+                            if(data.bairro) clienteFields.bairro.value = data.bairro;
+                            if(data.localidade) clienteFields.cidade.value = data.localidade;
+                            if(data.uf) clienteFields.estado.value = data.uf;
+                            if(clienteFields.numero) clienteFields.numero.focus(); 
+                        }
+                    })
+                    .catch(error => { console.error('Erro na API ViaCEP:', error); });
+            } else if (cep.length > 0) {
+                cepFeedback.textContent = 'CEP inválido.';
+                cepFeedback.classList.add('text-danger');
+            } else {
+                cepFeedback.textContent = '';
+            }
+        });
+    }
+
+    // --- Listener da API de CPF/CNPJ ---
+    if (cpfInput) {
+        cpfInput.addEventListener('blur', function() {
+            const cpfCnpj = this.value.replace(/\D/g, ''); 
+            
+            if (cpfCnpj.length === 14) { // É CNPJ
+                blocoResponsavelPJ.style.display = 'block';
+            } else { // É CPF ou Vazio
+                blocoResponsavelPJ.style.display = 'none';
+            }
+            
+            if (cpfCnpj.length === 11 || cpfCnpj.length === 14) {
+                cpfFeedback.textContent = 'Verificando cliente...';
+                cpfFeedback.classList.remove('text-danger', 'text-success');
+                
+                fetch(`/api/check_cliente/?cpf_cnpj=${cpfCnpj}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'found') {
+                            cpfFeedback.textContent = 'Cliente encontrado. Os dados foram preenchidos.';
+                            cpfFeedback.classList.add('text-success');
+                            
+                            clienteFields.nome.value = data.nome_completo || '';
+                            clienteFields.email.value = data.email || '';
+                            clienteFields.telefone.value = data.telefone || '';
+                            clienteFields.cep.value = data.cep || '';
+                            clienteFields.endereco.value = data.endereco || '';
+                            clienteFields.numero.value = data.numero || '';
+                            clienteFields.complemento.value = data.complemento || '';
+                            clienteFields.bairro.value = data.bairro || '';
+                            clienteFields.cidade.value = data.cidade || '';
+                            clienteFields.estado.value = data.estado || '';
+                            clienteFields.resp_nome.value = data.responsavel_nome || '';
+                            clienteFields.resp_cpf.value = data.responsavel_cpf || '';
+                            clienteFields.resp_email.value = data.responsavel_email || '';
+                            
+                            setClienteFieldsReadOnly(true);
+                            
+                        } else {
+                            cpfFeedback.textContent = 'Cliente novo. Por favor, preencha os dados.';
+                            cpfFeedback.classList.remove('text-success');
+                            
+                            const nomeSalvo = clienteFields.nome.value; 
+                            clearClienteFields(false, false); 
+                            clienteFields.nome.value = nomeSalvo; 
+                            
+                            setClienteFieldsReadOnly(false);
+                        }
+                    })
+                    .catch(error => { console.error('Erro na API Check Cliente:', error); });
+                    
+            } else if (cpfCnpj.length > 0) {
+                cpfFeedback.textContent = 'CPF/CNPJ inválido.';
+                cpfFeedback.classList.add('text-danger');
+                
+            } else {
+                cpfFeedback.textContent = '';
+                clearClienteFields(false, true); 
+                setClienteFieldsReadOnly(false); 
+                blocoResponsavelPJ.style.display = 'none'; 
+            }
+        });
+    }
+    
+    // Garantir que o nome do input de ficheiro está correto
+    const fileInput = document.getElementById('{{ anexo_form.arquivo.id_for_label }}');
+    if (fileInput) {
+        fileInput.name = 'arquivo'; 
+    }
+});
+</script>
+{% endblock %}

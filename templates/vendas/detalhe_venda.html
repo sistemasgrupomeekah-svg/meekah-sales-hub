@@ -1,0 +1,494 @@
+{% extends 'base.html' %}
+{% load humanize %} 
+{% load l10n %} <!-- Necessário para o filtro 'unlocalize' -->
+
+{% block title %}Detalhes da Venda #{{ venda.id }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Detalhes da Venda #{{ venda.id }}</h1>
+    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+        &larr; Voltar ao Dashboard
+    </a>
+</div>
+
+<!-- Mensagem de Bloqueio (Aparece para Vendedor se a venda estiver bloqueada) -->
+{% if perms.is_vendedor and is_locked %}
+<div class="alert alert-warning" role="alert">
+  <strong>Venda Bloqueada!</strong> Como o contrato desta venda não está mais no status "Não Gerado",
+  ela não pode mais ser editada por si. Os anexos (comprovativos) ainda podem ser enviados.
+</div>
+{% endif %}
+
+<div class="row">
+    <!-- Coluna da Esquerda: Edição -->
+    <div class="col-lg-7">
+        
+        <!-- Bloco de Edição de Status -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Gestão de Status</h5>
+            </div>
+            <fieldset {% if perms.is_vendedor and is_locked %}disabled{% endif %}>
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="acao" value="update_status">
+                    
+                    <div class="card-body">
+                        <!-- Lógica de Visualização de Status por Perfil -->
+                        <div class="row">
+                            {% if perms.is_admin or perms.is_gestor %}
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status da Venda</label>
+                                {{ status_form.status_venda }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status do Pagamento</label>
+                                {{ status_form.status_pagamento }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status do Contrato</label>
+                                {{ status_form.status_contrato }}
+                            </div>
+                            {% elif perms.is_financeiro %}
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status da Venda</label>
+                                <input type="text" class="form-control bg-light" value="{{ venda.get_status_venda_display }}" readonly>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status do Pagamento</label>
+                                {{ status_form.status_pagamento }} <!-- Editável -->
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status do Contrato</label>
+                                <input type="text" class="form-control bg-light" value="{{ venda.get_status_contrato_display }}" readonly>
+                            </div>
+                            {% elif perms.is_advogado %}
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status da Venda</label>
+                                <input type="text" class="form-control bg-light" value="{{ venda.get_status_venda_display }}" readonly>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status do Pagamento</label>
+                                <input type="text" class="form-control bg-light" value="{{ venda.get_status_pagamento_display }}" readonly>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status do Contrato</label>
+                                {{ status_form.status_contrato }} <!-- Editável -->
+                            </div>
+                            {% else %} <!-- Vendedor -->
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status da Venda</label>
+                                {{ status_form.status_venda }} <!-- Editável (se não 'is_locked') -->
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status do Pagamento</label>
+                                <input type="text" class="form-control bg-light" 
+                                       value="{{ venda.get_status_pagamento_display }}" readonly>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status do Contrato</label>
+                                <input type="text" class="form-control bg-light" 
+                                       value="{{ venda.get_status_contrato_display }}" readonly>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <button type="submit" class="btn btn-primary">
+                            Salvar Alterações de Status
+                        </button>
+                    </div>
+                </form>
+            </fieldset>
+        </div>
+        
+        <!-- Bloco de Edição de Venda -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Editar Dados da Venda</h5>
+            </div>
+            
+            <!-- Secção de visualização (Cliente, Vendedor, Produto, Data) -->
+            <div class="card-body border-bottom">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Cliente:</strong><br>
+                        {{ venda.cliente.nome_completo }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Vendedor:</strong><br>
+                        {{ venda.vendedor.get_full_name|default:venda.vendedor.username }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Produto:</strong><br>
+                        {{ venda.produto.nome }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Data da Venda:</strong><br>
+                        {{ venda.data_venda|date:"d/m/Y H:i" }}
+                    </div>
+                </div>
+            </div>
+
+            <fieldset {% if not can_edit_data %}disabled{% endif %}>
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="acao" value="update_venda">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ venda_form.forma_pagamento.label_tag }}
+                            {{ venda_form.forma_pagamento }}
+                        </div>
+                        <div class="mb-3">
+                            {{ venda_form.honorarios.label_tag }}
+                            <input type="text" 
+                                   name="{{ venda_form.honorarios.name }}" 
+                                   id="{{ venda_form.honorarios.id_for_label }}" 
+                                   class="form-control {% if can_edit_data %}bg-light{% endif %}" 
+                                   value="{{ venda.honorarios|unlocalize }}"
+                                   readonly>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ venda_form.valor_entrada.label_tag }}
+                                {{ venda_form.valor_entrada }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ venda_form.valor_exito.label_tag }}
+                                {{ venda_form.valor_exito }}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ venda_form.num_parcelas.label_tag }}
+                                {{ venda_form.num_parcelas }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ venda_form.valor_parcela.label_tag }}
+                                {{ venda_form.valor_parcela }}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            {{ venda_form.valor_aporte.label_tag }}
+                            {{ venda_form.valor_aporte }}
+                        </div>
+                        <div class="mb-3">
+                            {{ venda_form.observacoes.label_tag }}
+                            {{ venda_form.observacoes }}
+                        </div>
+                        
+                        <!-- === NOVOS CAMPOS DE COMISSÃO === -->
+                        <hr>
+                        <h6 class="mt-3">Comissionamento</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Comissão Personalizada (R$)</label>
+                                <!-- Só Admin/Gestor podem editar este campo -->
+                                <input type="text" 
+                                       name="{{ venda_form.comissao_personalizada_valor.name }}" 
+                                       id="{{ venda_form.comissao_personalizada_valor.id_for_label }}" 
+                                       class="form-control" 
+                                       value="{{ venda.comissao_personalizada_valor|unlocalize|default:'' }}"
+                                       {% if not perms.is_admin and not perms.is_gestor %}readonly{% endif %}>
+                                <small class="form-text text-muted">Se preenchido, substitui todas as regras.</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Comissão Final Calculada (R$)</label>
+                                <input type="text" 
+                                       class="form-control bg-light" 
+                                       value="{{ venda.comissao_calculada_final|intcomma|default:'N/A' }}" 
+                                       readonly>
+                            </div>
+                        </div>
+                        <!-- === FIM NOVOS CAMPOS === -->
+                        
+                    </div>
+                    {% if can_edit_data %}
+                    <div class="card-footer text-end">
+                        <button type="submit" class="btn btn-secondary">
+                            Salvar Dados da Venda
+                        </button>
+                    </div>
+                    {% endif %}
+                </form>
+            </fieldset>
+        </div>
+
+        <!-- Bloco de Edição de Cliente -->
+        <div class="card shadow-sm mb-4">
+             <div class="card-header">
+                <h5 class="mb-0">Editar Dados do Cliente</h5>
+            </div>
+            <fieldset {% if not can_edit_data %}disabled{% endif %}>
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="acao" value="update_cliente">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">{{ cliente_form.cpf_cnpj.label_tag }} {{ cliente_form.cpf_cnpj }}</div>
+                            <div class="col-md-8 mb-3">{{ cliente_form.nome_completo.label_tag }} {{ cliente_form.nome_completo }}</div>
+                        </div>
+                        <div class="row">
+                             <div class="col-md-6 mb-3">{{ cliente_form.email.label_tag }} {{ cliente_form.email }}</div>
+                            <div class="col-md-6 mb-3">{{ cliente_form.telefone.label_tag }} {{ cliente_form.telefone }}</div>
+                        </div>
+                        <h6 class="mt-3">Endereço</h6>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">{{ cliente_form.cep.label_tag }} {{ cliente_form.cep }}</div>
+                            <div class="col-md-8 mb-3">{{ cliente_form.endereco.label_tag }} {{ cliente_form.endereco }}</div>
+                        </div>
+                        <div class="row">
+                             <div class="col-md-4 mb-3">{{ cliente_form.numero.label_tag }} {{ cliente_form.numero }}</div>
+                             <div class="col-md-8 mb-3">{{ cliente_form.complemento.label_tag }} {{ cliente_form.complemento }}</div>
+                        </div>
+                        <div class="row">
+                             <div class="col-md-5 mb-3">{{ cliente_form.bairro.label_tag }} {{ cliente_form.bairro }}</div>
+                             <div class="col-md-5 mb-3">{{ cliente_form.cidade.label_tag }} {{ cliente_form.cidade }}</div>
+                             <div class="col-md-2 mb-3">{{ cliente_form.estado.label_tag }} {{ cliente_form.estado }}</div>
+                        </div>
+                        <div id="blocoResponsavelPJ" {% if not venda.cliente.responsavel_nome %}style="display: none;"{% endif %}>
+                            <h5 class="mt-4 text-muted">Dados do Responsável (PF)</h5>
+                            <div class="row">
+                                <div class="col-md-8 mb-3">{{ cliente_form.responsavel_nome.label_tag }} {{ cliente_form.responsavel_nome }}</div>
+                                <div class="col-md-4 mb-3">{{ cliente_form.responsavel_cpf.label_tag }} {{ cliente_form.responsavel_cpf }}</div>
+                            </div>
+                            <div class="mb-3">{{ cliente_form.responsavel_email.label_tag }} {{ cliente_form.responsavel_email }}</div>
+                        </div>
+                    </div>
+                    {% if can_edit_data %}
+                    <div class="card-footer text-end">
+                        <button type="submit" class="btn btn-secondary">
+                            Salvar Dados do Cliente
+                        </button>
+                    </div>
+                    {% endif %}
+                </form>
+            </fieldset>
+        </div>
+    </div>
+
+    <!-- Coluna da Direita: Anexos -->
+    <div class="col-lg-5">
+        <!-- Seção Comprovantes -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><h5 class="mb-0">Comprovantes de Pagamento</h5></div>
+            <div class="card-body">
+                {% if perms.is_admin or perms.is_gestor or perms.is_financeiro or perms.is_vendedor %}
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_arquivos_comprovante" class="form-label">Adicionar Comprovante(s):</label>
+                        <input type="file" name="arquivos" id="id_arquivos_comprovante" class="form-control" multiple>
+                    </div>
+                    <input type="hidden" name="acao" value="add_comprovante">
+                    <button type="submit" class="btn btn-primary w-100">Enviar Comprovante(s)</button>
+                </form>
+                <hr class="my-4">
+                {% endif %}
+                <h6 class="mb-3">Enviados:</h6>
+                <ul class="list-group">
+                    {% for anexo in venda.anexos.all %}{% if anexo.tipo == 'comprovante' %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{{ anexo.arquivo.url }}" target="_blank">
+                           {{ anexo.descricao|truncatechars:25|default:"Anexo" }}
+                        </a>
+                        {% if can_delete_comprovante %}
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-2 delete-btn" 
+                                data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                data-anexo-url="{% url 'delete_anexo' anexo.id %}"
+                                data-anexo-name="{{ anexo.descricao|default:'este ficheiro' }}">
+                            Excluir
+                        </button>
+                        {% endif %}
+                    </li>
+                    {% endif %}{% endfor %}
+                    {% if not venda.anexos.all|length %}<li class="list-group-item text-center text-muted">Nenhum anexo enviado.</li>{% endif %}
+                </ul>
+            </div>
+        </div>
+        <!-- Seção Contratos -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><h5 class="mb-0">Contratos</h5></div>
+            <div class="card-body">
+                {% if perms.is_admin or perms.is_gestor or perms.is_advogado %}
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_arquivos_contrato" class="form-label">Adicionar Contrato(s):</label>
+                        <input type="file" name="arquivos" id="id_arquivos_contrato" class="form-control" multiple>
+                    </div>
+                    <input type="hidden" name="acao" value="add_contrato">
+                    <button type="submit" class="btn btn-info w-100 text-white">Enviar Contrato(s)</button>
+                </form>
+                <hr class="my-4">
+                {% endif %}
+                <h6 class="mb-3">Enviados:</h6>
+                <ul class="list-group">
+                    {% for anexo in venda.anexos.all %}{% if anexo.tipo == 'contrato' %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{{ anexo.arquivo.url }}" target="_blank">
+                           {{ anexo.descricao|truncatechars:25|default:"Anexo" }}
+                        </a>
+                        {% if can_delete_contrato %}
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-2 delete-btn" 
+                                data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                data-anexo-url="{% url 'delete_anexo' anexo.id %}"
+                                data-anexo-name="{{ anexo.descricao|default:'este ficheiro' }}">
+                            Excluir
+                        </button>
+                        {% endif %}
+                    </li>
+                    {% endif %}{% endfor %}
+                </ul>
+            </div>
+        </div>
+        <!-- Seção Notas Fiscais -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><h5 class="mb-0">Notas Fiscais</h5></div>
+            <div class="card-body">
+                {% if perms.is_admin or perms.is_gestor or perms.is_financeiro %}
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_arquivos_nf" class="form-label">Adicionar Nota(s) Fiscal(is):</label>
+                        <input type="file" name="arquivos" id="id_arquivos_nf" class="form-control" multiple>
+                    </div>
+                    <input type="hidden" name="acao" value="add_nota_fiscal">
+                    <button type="submit" class="btn btn-success w-100">Enviar Nota(s) Fiscal(is)</button>
+                </form>
+                <hr class="my-4">
+                {% endif %}
+                <h6 class="mb-3">Enviadas:</h6>
+                <ul class="list-group">
+                    {% for anexo in venda.anexos.all %}{% if anexo.tipo == 'nota_fiscal' %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{{ anexo.arquivo.url }}" target="_blank">
+                           {{ anexo.descricao|truncatechars:25|default:"Anexo" }}
+                        </a>
+                        {% if can_delete_nf %}
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-2 delete-btn" 
+                                data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                data-anexo-url="{% url 'delete_anexo' anexo.id %}"
+                                data-anexo-name="{{ anexo.descricao|default:'este ficheiro' }}">
+                            Excluir
+                        </button>
+                        {% endif %}
+                    </li>
+                    {% endif %}{% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- === MODAL DE CONFIRMAÇÃO (Req 2) === -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Tem a certeza que deseja excluir o anexo: 
+        <br>
+        <strong id="deleteModalFileName"></strong>
+        <br><br>
+        <small class="text-danger">Esta ação não pode ser desfeita.</small>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form id="deleteModalForm" method="POST">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Confirmar Exclusão</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+
+<!-- === SCRIPTS (ATUALIZADO) === -->
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/autonumeric/4.6.0/autoNumeric.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- Bloco de Máscara de Moeda (ATUALIZADO) ---
+    const currencyOptions = {
+        currencySymbol: 'R$ ', decimalCharacter: ',', digitGroupSeparator: '.',
+        decimalPlaces: 2, minimumValue: '0', unformatOnSubmit: true
+    };
+    
+    const honorariosInput = document.getElementById('{{ venda_form.honorarios.id_for_label }}');
+    const entradaInput = document.getElementById('{{ venda_form.valor_entrada.id_for_label }}');
+    const parcelasInput = document.getElementById('{{ venda_form.num_parcelas.id_for_label }}'); 
+    const valorParcelaInput = document.getElementById('{{ venda_form.valor_parcela.id_for_label }}');
+    const valorExitoInput = document.getElementById('{{ venda_form.valor_exito.id_for_label }}');
+    const valorAporteInput = document.getElementById('{{ venda_form.valor_aporte.id_for_label }}');
+    
+    // Campo de Comissão
+    const comissaoPersonalizadaInput = document.getElementById('{{ venda_form.comissao_personalizada_valor.id_for_label }}');
+    
+    if (honorariosInput) new AutoNumeric(honorariosInput, currencyOptions);
+    const anEntrada = (entradaInput) ? new AutoNumeric(entradaInput, currencyOptions) : null;
+    const anValorParcela = (valorParcelaInput) ? new AutoNumeric(valorParcelaInput, currencyOptions) : null;
+    const anExito = (valorExitoInput) ? new AutoNumeric(valorExitoInput, currencyOptions) : null;
+    const anAporte = (valorAporteInput) ? new AutoNumeric(valorAporteInput, currencyOptions) : null;
+    
+    if (comissaoPersonalizadaInput) new AutoNumeric(comissaoPersonalizadaInput, currencyOptions);
+    
+    // --- Função Recalcular Honorários (ATUALIZADA) ---
+    function recalcularHonorarios() {
+        if (!anEntrada || !parcelasInput || !anValorParcela || !anExito || !honorariosInput) return;
+        
+        const entrada = anEntrada.getNumber() || 0;
+        const parcelas = parseFloat(parcelasInput.value) || 0;
+        const valorParcela = anValorParcela.getNumber() || 0;
+        const exito = anExito.getNumber() || 0; 
+        
+        const total = entrada + (parcelas * valorParcela) + exito;
+        
+        AutoNumeric.set(honorariosInput, total);
+    }
+    
+    if (entradaInput) entradaInput.addEventListener('input', recalcularHonorarios);
+    if (parcelasInput) parcelasInput.addEventListener('input', recalcularHonorarios);
+    if (valorParcelaInput) valorParcelaInput.addEventListener('input', recalcularHonorarios);
+    if (valorExitoInput) valorExitoInput.addEventListener('input', recalcularHonorarios);
+    
+    // --- Lógica para mostrar/esconder bloco PJ ---
+    const cpfInput = document.getElementById('{{ cliente_form.cpf_cnpj.id_for_label }}');
+    const blocoResponsavelPJ = document.getElementById('blocoResponsavelPJ');
+    if (cpfInput && blocoResponsavelPJ) {
+        function togglePJ() {
+            if (cpfInput.value.replace(/\D/g, '').length === 14) {
+                blocoResponsavelPJ.style.display = 'block';
+            } else {
+                blocoResponsavelPJ.style.display = 'none';
+            }
+        }
+        cpfInput.addEventListener('input', togglePJ);
+        togglePJ(); // Roda ao carregar
+    }
+
+    // --- SCRIPT DO MODAL ---
+    const deleteModal = document.getElementById('confirmDeleteModal');
+    if (deleteModal) {
+        deleteModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const anexoUrl = button.getAttribute('data-anexo-url');
+            const anexoName = button.getAttribute('data-anexo-name');
+            const modalBodyName = deleteModal.querySelector('#deleteModalFileName');
+            const modalForm = deleteModal.querySelector('#deleteModalForm');
+            modalBodyName.textContent = anexoName;
+            modalForm.action = anexoUrl; 
+        });
+    }
+});
+</script>
+{% endblock %}

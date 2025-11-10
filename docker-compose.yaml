@@ -1,0 +1,33 @@
+services:
+  # Serviço da Aplicação Django
+  web:
+    build: .
+    # Comando para rodar o servidor de desenvolvimento
+    command: python manage.py runserver 0.0.0.0:8000
+    # Monta o diretório local dentro do container
+    # Mudanças no seu código local refletirão imediatamente no container
+    volumes:
+      - .:/app
+    # Mapeia a porta 8000 do host para a 8000 do container
+    ports:
+      - "8000:8000"
+    # Carrega as variáveis de ambiente do arquivo .env
+    env_file:
+      - .env
+    # Garante que o serviço 'db' esteja pronto antes do 'web'
+    depends_on:
+      - db
+
+  # Serviço do Banco de Dados PostgreSQL
+  db:
+    image: postgres:15
+    # Mapeia um volume para persistir os dados do banco
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    # Carrega as variáveis de ambiente (usuário, senha, banco) do .env
+    env_file:
+      - .env
+
+volumes:
+  # Define o volume de persistência
+  postgres_data:

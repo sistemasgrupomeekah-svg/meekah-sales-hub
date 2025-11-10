@@ -1,0 +1,34 @@
+Bytecode do Python
+
+pycache/
+*.pyc
+
+Arquivos de ambiente
+
+NUNCA comite suas chaves secretas!
+
+.env
+.env.*
+
+Banco de dados local (backup)
+
+db.sqlite3
+
+Logs
+
+*.log
+
+Dependências (se usar venv local)
+
+venv/
+env/
+
+Arquivos de IDE
+
+.vscode/
+.idea/
+
+Arquivos de OS
+
+.DS_Store
+Thumbs.db

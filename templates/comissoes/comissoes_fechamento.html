@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% load vendas_extras %}
+
+{% block title %}Fechamento de Comissões{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Fechamento de Comissões</h1>
+</div>
+
+<!-- Abas do Módulo de Comissão -->
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link" href="{% url 'comissoes_dashboard' %}">Histórico de Lotes</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link active" href="#">Pagar Comissões</a>
+  </li>
+</ul>
+
+<div class="row">
+    <!-- Coluna 1: O Formulário de Data (ATUALIZADO Req 1) -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">1. Selecionar Período</h5>
+            </div>
+            <div class="card-body">
+                <p>Selecione o período e o vendedor (ou "Todos") para carregar as comissões pendentes.</p>
+                <form method="GET" action="{% url 'comissoes_fechamento' %}" class="row g-3">
+                    <div class="col-12">
+                        <label for="data_inicio" class="form-label">Data Início</label>
+                        <input type="date" class="form-control" id="data_inicio" 
+                               name="data_inicio" value="{{ request.GET.data_inicio|default:'' }}" required>
+                    </div>
+                    <div class="col-12">
+                        <label for="data_fim" class="form-label">Data Fim</label>
+                        <input type="date" class="form-control" id="data_fim" 
+                               name="data_fim" value="{{ request.GET.data_fim|default:'' }}" required>
+                    </div>
+                    
+                    <!-- NOVO FILTRO DE VENDEDOR (Req 1) -->
+                    <div class="col-12">
+                        <label for="filtro_vendedor" class="form-label">Vendedor</label>
+                        <select id="filtro_vendedor" name="vendedor" class="form-select">
+                            <option value="">Todos os Vendedores (Cria lotes individuais)</option>
+                            {% for vendedor in todos_vendedores %}
+                            <option value="{{ vendedor.id }}" {% if request.GET.vendedor == vendedor.id|stringformat:"s" %}selected{% endif %}>
+                                {{ vendedor.username }} (Criar lote único)
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-secondary w-100">
+                            Carregar Comissões Pendentes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Coluna 2: O Resumo e Botão de Fechamento -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">2. Resumo para Pagamento</h5>
+            </div>
+            <div class="card-body">
+                {% if vendas_para_pagar %}
+                    <h6 class="mb-3">Resumo do Período ({{ request.GET.data_inicio }} a {{ request.GET.data_fim }}):</h6>
+                    
+                    <ul class="list-group mb-3">
+                        {% for item in resumo_por_vendedor %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Vendedor: <strong>{{ item.vendedor__username }}</strong>
+                            <span class="badge bg-primary rounded-pill">
+                                R$ {{ item.total_comissao|intcomma }} ({{ item.contagem }} vendas)
+                            </span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    
+                    <hr>
+                    
+                    <h4>Total a Pagar: <span class="text-success">R$ {{ total_geral_comissao|intcomma }}</span></h4>
+                    
+                    <form method="POST" action="{% url 'comissoes_fechamento' %}">
+                        {% csrf_token %}
+                        <!-- Passamos os filtros escondidos para o POST -->
+                        <input type="hidden" name="data_inicio" value="{{ request.GET.data_inicio }}">
+                        <input type="hidden" name="data_fim" value="{{ request.GET.data_fim }}">
+                        <input type="hidden" name="vendedor" value="{{ request.GET.vendedor|default:'' }}">
+                        
+                        <p class="text-muted small mt-4">
+                            Ao clicar em "Fechar Lote(s)", o sistema irá:
+                            1. Criar {{ resumo_por_vendedor|length }} lote(s) de pagamento individual(is).
+                            2. Associar as {{ vendas_para_pagar.count }} vendas encontradas a estes lotes.
+                            3. Marcar os lotes como "Pendente de Pagamento".
+                        </p>
+                        
+                        <button type="submit" class="btn btn-success w-100">
+                            Confirmar e Fechar Lote(s)
+                        </button>
+                    </form>
+
+                {% elif request.GET.data_inicio %}
+                    <div class="alert alert-warning">
+                        Nenhuma comissão pendente de pagamento (Status Pagamento: Aprovado, Lote: Vazio) 
+                        foi encontrada para o período e vendedor selecionados.
+                    </div>
+                {% else %}
+                    <p class="text-muted">Por favor, selecione um período à esquerda para carregar o resumo.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

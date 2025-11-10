@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+{% load humanize %} 
+{% load vendas_extras %}
+
+{% block title %}Dashboard (Gráficos){% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Dashboard</h1>
+</div>
+
+<!-- === FILTROS === -->
+<div class="accordion mb-4" id="accordionFiltros">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="headingOne">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFiltros" aria-expanded="false" aria-controls="collapseFiltros">
+        Mostrar/Esconder Filtros
+      </button>
+    </h2>
+    <div id="collapseFiltros" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionFiltros">
+      <div class="accordion-body">
+        
+        <form method="GET" action="{% url 'dashboard' %}" class="row g-3">
+            
+            <!-- Linha 1: Cliente, Vendedor, Produto -->
+            <div class="col-md-4">
+                <label for="filtro_cliente" class="form-label">Cliente</label>
+                <input type="text" class="form-control" id="filtro_cliente" name="cliente" value="{{ request.GET.cliente|default:'' }}">
+            </div>
+            
+            <div class="col-md-4">
+                <label for="filtro_produto" class="form-label">Produto</label>
+                <select id="filtro_produto" name="produto" class="form-select">
+                    <option value="">Todos os Produtos</option>
+                    {% for produto in todos_produtos %}
+                    <option value="{{ produto.id }}" {% if request.GET.produto == produto.id|stringformat:"s" %}selected{% endif %}>
+                        {{ produto.nome }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Filtro de Vendedor -->
+            {% if perms.is_admin or perms.is_gestor or perms.is_financeiro or perms.is_advogado %}
+            <div class="col-md-4">
+                <label for="filtro_vendedor" class="form-label">Vendedor</label>
+                <select id="filtro_vendedor" name="vendedor" class="form-select">
+                    <option value="">Todos os Vendedores</option>
+                    {% for vendedor in todos_vendedores %}
+                    <option value="{{ vendedor.id }}" {% if request.GET.vendedor == vendedor.id|stringformat:"s" %}selected{% endif %}>
+                        {{ vendedor.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <!-- Linha 2: Os 3 Status -->
+            <div class="col-md-4">
+                <label for="filtro_status_venda" class="form-label">Status da Venda</label>
+                <select id="filtro_status_venda" name="status_venda" class="form-select">
+                    <option value="">Todos os Status</option>
+                    {% for chave, valor in status_venda_choices %}
+                    <option value="{{ chave }}" {% if request.GET.status_venda == chave %}selected{% endif %}>
+                        {{ valor }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="filtro_status_pagamento" class="form-label">Status do Pagamento</label>
+                <select id="filtro_status_pagamento" name="status_pagamento" class="form-select">
+                    <option value="">Todos os Status</option>
+                    {% for chave, valor in status_pagamento_choices %}
+                    <option value="{{ chave }}" {% if request.GET.status_pagamento == chave %}selected{% endif %}>
+                        {{ valor }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="filtro_status_contrato" class="form-label">Status do Contrato</label>
+                <select id="filtro_status_contrato" name="status_contrato" class="form-select">
+                    <option value="">Todos os Status</option>
+                    {% for chave, valor in status_contrato_choices %}
+                    <option value="{{ chave }}" {% if request.GET.status_contrato == chave %}selected{% endif %}>
+                        {{ valor }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Linha 3: Datas e Botões -->
+            <div class="col-md-3">
+                <label for="filtro_data_inicio" class="form-label">Data Início</label>
+                <input type="date" class="form-control" id="filtro_data_inicio" name="data_inicio" value="{{ query_data_inicio }}">
+            </div>
+            <div class="col-md-3">
+                <label for="filtro_data_fim" class="form-label">Data Fim</label>
+                <input type="date" class="form-control" id="filtro_data_fim" name="data_fim" value="{{ query_data_fim }}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                 <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary w-100">Limpar Filtros</a>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+            </div>
+        </form>
+        
+      </div>
+    </div>
+  </div>
+</div>
+<!-- === FIM FILTROS === -->
+
+<!-- === KPIs (CARDS) === -->
+<div class="row mb-4">
+    <!-- Card Total de Vendas (Honorários) -->
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Total de Vendas (Honorários)</h6>
+                <h3 class="card-text">R$ {{ kpi_total_vendas|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <!-- Card Ticket Médio -->
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Ticket Médio</h6>
+                <h3 class="card-text">R$ {{ kpi_ticket_medio|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <!-- Card Contagem de Vendas -->
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Nº de Vendas</h6>
+                <h3 class="card-text">{{ kpi_contagem_vendas }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- === FIM KPIs === -->
+
+<!-- === GRÁFICOS === -->
+<div class="row">
+    <!-- Gráfico 1: Vendas ao Longo do Tempo (Linha) -->
+    <div class="col-lg-12 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Vendas (R$) ao Longo do Tempo</h5>
+                <!-- 
+                  CORREÇÃO: 
+                  Usamos uma altura fixa em 'px' em vez de 'vh'
+                -->
+                <div style="position: relative; height:350px;">
+                    <canvas id="vendasPorMesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gráfico 2: Comparação por Vendedor (Barras) -->
+    {% if perms.is_admin or perms.is_gestor or perms.is_financeiro or perms.is_advogado %}
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Vendas (R$) por Vendedor</h5>
+                <!-- CORREÇÃO: Altura fixa em 'px' -->
+                <div style="position: relative; height:350px;">
+                    <canvas id="vendasPorVendedorChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Gráfico 3: Vendas por Produto (Pizza) -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Vendas (R$) por Produto</h5>
+                <!-- CORREÇÃO: Altura fixa em 'px' -->
+                <div style="position: relative; height:350px;">
+                    <canvas id="vendasPorProdutoChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- === FIM GRÁFICOS === -->
+
+{% endblock %}
+
+
+<!-- === SCRIPT DO CHART.JS === -->
+{% block scripts %}
+<!-- 1. Carrega a biblioteca Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- 2. Carrega o script do Acordeão (para 'Mostrar Filtros') -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const accordionContent = document.getElementById('collapseFiltros');
+    const storageKey = 'filtroAccordionState';
+    const savedState = localStorage.getItem(storageKey);
+    
+    if (savedState === 'open') {
+        const bsCollapse = new bootstrap.Collapse(accordionContent, { toggle: false });
+        bsCollapse.show();
+    }
+    accordionContent.addEventListener('show.bs.collapse', function () {
+      localStorage.setItem(storageKey, 'open');
+    });
+    accordionContent.addEventListener('hide.bs.collapse', function () {
+      localStorage.setItem(storageKey, 'closed');
+    });
+});
+</script>
+
+<!-- 3. Script para desenhar os gráficos -->
+<script>
+    // Passa os dados JSON do Django (views.py) para o JavaScript
+    const vendasPorVendedorData = {{ vendas_por_vendedor_json|safe }};
+    const vendasPorProdutoData = {{ vendas_por_produto_json|safe }};
+    const vendasPorMesLabels = {{ vendas_por_mes_labels_json|safe }};
+    const vendasPorMesData = {{ vendas_por_mes_data_json|safe }};
+
+    // --- Função Helper para formatar R$ ---
+    const formatadorReais = new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+    });
+
+    // --- Gráfico 1: Vendas ao Longo do Tempo (Linha) ---
+    const ctxLinha = document.getElementById('vendasPorMesChart');
+    if (ctxLinha) {
+        new Chart(ctxLinha, {
+            type: 'line',
+            data: {
+                labels: vendasPorMesLabels,
+                datasets: [{
+                    label: 'Total de Vendas (R$)',
+                    data: vendasPorMesData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    fill: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, // <-- Crucial
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: function(value, index, values) {
+                                return formatadorReais.format(value);
+                            }
+                        }
+                    }
+                },
+                tooltips: {
+                    callbacks: {
+                        label: function(tooltipItem, data) {
+                            return formatadorReais.format(tooltipItem.yLabel);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // --- Gráfico 2: Vendas por Vendedor (Barras) ---
+    const ctxBarra = document.getElementById('vendasPorVendedorChart');
+    if (ctxBarra) {
+        new Chart(ctxBarra, {
+            type: 'bar',
+            data: {
+                labels: vendasPorVendedorData.map(v => v.vendedor__username),
+                datasets: [{
+                    label: 'Total de Vendas (R$)',
+                    data: vendasPorVendedorData.map(v => v.total),
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.2)',
+                        'rgba(54, 162, 235, 0.2)',
+                        'rgba(255, 206, 86, 0.2)',
+                        'rgba(75, 192, 192, 0.2)',
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y', 
+                responsive: true,
+                maintainAspectRatio: false, // <-- Crucial
+                scales: {
+                    x: {
+                        ticks: {
+                            callback: function(value, index, values) {
+                                return formatadorReais.format(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // --- Gráfico 3: Vendas por Produto (Pizza) ---
+    const ctxPizza = document.getElementById('vendasPorProdutoChart');
+    if (ctxPizza) {
+        new Chart(ctxPizza, {
+            type: 'doughnut', 
+            data: {
+                labels: vendasPorProdutoData.map(p => p.produto__nome),
+                datasets: [{
+                    label: 'Total (R$)',
+                    data: vendasPorProdutoData.map(p => p.total),
+                    backgroundColor: [
+                        'rgb(255, 99, 132)',
+                        'rgb(54, 162, 235)',
+                        'rgb(255, 206, 86)',
+                        'rgb(75, 192, 192)',
+                        'rgb(153, 102, 255)',
+                    ],
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, // <-- Crucial
+            }
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load humanize %} <!-- Carrega a biblioteca aqui também -->
+
+{% block title %}Meu Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Minhas Vendas</h1>
+    <a href="{% url 'nova_venda' %}" class="btn btn-primary">
+        + Registrar Nova Venda
+    </a>
+</div>
+
+<!-- === FILTROS (Sem alterações) === -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" action="{% url 'dashboard' %}" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label for="filtro_cliente" class="form-label">Filtrar por Cliente</label>
+                <input type="text" class="form-control" id="filtro_cliente" name="cliente" value="{{ query_cliente }}">
+            </div>
+            <div class="col-md-4">
+                <label for="filtro_status" class="form-label">Filtrar por Status da Venda</label>
+                <select id="filtro_status" name="status_venda" class="form-select">
+                    <option value="">Todos os Status</option>
+                    {% for chave, valor in status_venda_choices %}
+                    <option value="{{ chave }}" {% if query_status == chave %}selected{% endif %}>
+                        {{ valor }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-secondary w-100">Filtrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">Cliente</th>
+                        <th scope="col">Produto</th>
+                        <th scope="col">Honorários</th>
+                        <!-- === ATUALIZADO (ITEM 4) === -->
+                        <th scope="col">Valor Entrada</th>
+                        <th scope="col">Status Venda</th>
+                        <th scope="col">Status Pagamento</th>
+                        <th scope="col">Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for venda in vendas %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'detalhe_venda' venda.id %}">
+                                <strong>#{{ venda.id }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ venda.cliente.nome_completo }}</td>
+                        <td>{{ venda.produto.nome }}</td>
+                        <td>R$ {{ venda.honorarios|intcomma }}</td>
+                        <td>R$ {{ venda.valor_entrada|intcomma|default:"--" }}</td>
+                        <td>
+                            <span class="badge bg-secondary">{{ venda.get_status_venda_display }}</span>
+                        </td>
+                        <td>
+                            <span class="badge {% if venda.status_pagamento == 'pago' %}bg-success{% elif venda.status_pagamento == 'pendente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                {{ venda.get_status_pagamento_display }}
+                            </span>
+                        </td>
+                        <td>{{ venda.data_venda|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            Nenhuma venda encontrada.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

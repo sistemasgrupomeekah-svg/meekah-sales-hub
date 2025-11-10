@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% load vendas_extras %}
+
+{% block title %}Detalhe do Lote #{{ lote.id }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Detalhe do Lote de Pagamento #{{ lote.id }}</h1>
+    <a href="{% url 'comissoes_dashboard' %}" class="btn btn-outline-secondary">
+        &larr; Voltar ao Histórico
+    </a>
+</div>
+
+<div class="row">
+    <!-- Coluna da Esquerda: Detalhes e Transações -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><h5 class="mb-0">Detalhes do Lote</h5></div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6"><strong>Vendedor:</strong><br> {{ lote.vendedor.username }}</div>
+                    <div class="col-md-6"><strong>Período:</strong><br> {{ lote.periodo_inicio|date:"d/m/Y" }} a {{ lote.periodo_fim|date:"d/m/Y" }}</div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-4"><strong>Total Devido:</strong><br><h4 class="text-danger">R$ {{ lote.total_comissoes|intcomma }}</h4></div>
+                    <div class="col-md-4"><strong>Total Já Pago:</strong><br><h4 class="text-success">R$ {{ lote.total_pago_efetivamente|intcomma }}</h4></div>
+                    <div class="col-md-4"><strong>Status:</strong><br><h4><span class="badge text-dark bg-{{ lote.status|status_to_color }}">{{ lote.get_status_display }}</span></h4></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Histórico de Transações (ATUALIZADO) -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><h5 class="mb-0">Histórico de Pagamentos Efetuados</h5></div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for transacao in transacoes_do_lote %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>R$ {{ transacao.valor_pago|intcomma }}</strong>
+                            <small class="d-block text-muted">
+                                Pago por: {{ transacao.responsavel_pagamento.username }} 
+                                em {{ transacao.data_pagamento|date:"d/m/Y H:i" }}
+                            </small>
+                        </div>
+                        <!-- ATUALIZADO: Link apenas para o comprovativo de pagamento -->
+                        {% if transacao.anexo_comprovativo_pagamento %}
+                        <a href="{{ transacao.anexo_comprovativo_pagamento.url }}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                            Ver Comprovativo
+                        </a>
+                        {% endif %}
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-center text-muted">
+                        Nenhum pagamento foi registado para este lote.
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Vendas Incluídas (sem alterações) -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><h5 class="mb-0">Vendas Incluídas neste Lote ({{ lote.vendas.count }})</h5></div>
+            <div class="card-body">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm">
+                        <thead> <tr> <th>ID</th> <th>Vendedor</th> <th>Comissão (R$)</th> </tr> </thead>
+                        <tbody>
+                            {% for venda in lote.vendas.all %}
+                            <tr>
+                                <td><a href="{% url 'detalhe_venda' venda.id %}" target="_blank">#{{ venda.id }}</a></td>
+                                <td>{{ venda.vendedor.username }}</td>
+                                <td>R$ {{ venda.comissao_calculada_final|intcomma }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Coluna da Direita: Adicionar Pagamento / Anexos -->
+    <div class="col-lg-5">
+    
+        <!-- Formulário de Nova Transação (ATUALIZADO) -->
+        {% if lote.status != 'pago_integralmente' %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Adicionar Pagamento (Parcial ou Integral)</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="acao" value="add_transacao">
+                    
+                    <div class="mb-3">
+                        {{ transacao_form.valor_pago.label_tag }}
+                        {{ transacao_form.valor_pago }}
+                        {% if transacao_form.valor_pago.errors %}
+                            <div class="invalid-feedback d-block">{{ transacao_form.valor_pago.errors.as_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ transacao_form.anexo_comprovativo_pagamento.label_tag }}
+                        {{ transacao_form.anexo_comprovativo_pagamento }}
+                        {% if transacao_form.anexo_comprovativo_pagamento.errors %}
+                            <div class="invalid-feedback d-block">{{ transacao_form.anexo_comprovativo_pagamento.errors.as_text }}</div>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100">
+                        Registar Pagamento
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- === NOVO FORMULÁRIO (Sua Solicitação) === -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Nota Fiscal do Vendedor</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="acao" value="add_anexo_nf">
+                    <div class="mb-3">
+                        {{ anexo_lote_form.anexo_nf_vendedor.label_tag }}
+                        {{ anexo_lote_form.anexo_nf_vendedor }}
+                        {% if anexo_lote_form.anexo_nf_vendedor.errors %}
+                             <div class="invalid-feedback d-block">{{ anexo_lote_form.anexo_nf_vendedor.errors.as_text }}</div>
+                        {% endif %}
+                    </div>
+                    <button type="submit" class="btn btn-info w-100 text-white">
+                        Anexar NF
+                    </button>
+                </form>
+                <hr>
+                <h6 class="mb-3">NFs Anexadas:</h6>
+                <ul class="list-group">
+                    {% for anexo_nf in anexos_do_lote %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{{ anexo_nf.anexo_nf_vendedor.url }}" target="_blank">
+                           {{ anexo_nf.descricao|truncatechars:25|default:"Nota Fiscal" }}
+                        </a>
+                        <!-- TODO: Adicionar lógica de exclusão -->
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-center text-muted">
+                        Nenhuma NF anexada a este lote.
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/autonumeric/4.6.0/autoNumeric.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const currencyOptions = {
+        currencySymbol: 'R$ ', decimalCharacter: ',', digitGroupSeparator: '.',
+        decimalPlaces: 2, minimumValue: '0', unformatOnSubmit: true
+    };
+    
+    const valorPagoInput = document.getElementById('{{ transacao_form.valor_pago.id_for_label }}');
+    if (valorPagoInput) {
+        new AutoNumeric(valorPagoInput, currencyOptions);
+    }
+});
+</script>
+{% endblock %}

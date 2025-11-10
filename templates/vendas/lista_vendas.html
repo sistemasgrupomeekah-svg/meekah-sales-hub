@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% load humanize %} 
+{% load vendas_extras %} 
+
+{% block title %}Lista de Vendas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Lista de Vendas</h1>
+    <!-- (Botão de Nova Venda removido daqui) -->
+</div>
+
+<!-- === FILTROS EM ACORDEÃO (ATUALIZADO) === -->
+<div class="accordion mb-4" id="accordionFiltros">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="headingOne">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFiltros" aria-expanded="false" aria-controls="collapseFiltros">
+        Mostrar/Esconder Filtros
+      </button>
+    </h2>
+    <div id="collapseFiltros" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionFiltros">
+      <div class="accordion-body">
+        
+        <!-- O <form> agora tem um ID para o JS o encontrar -->
+        <form method="GET" action="{% url 'lista_vendas' %}" class="row g-3" id="filtros-form">
+            
+            <!-- Linha 1: Cliente, Vendedor, Produto -->
+            <div class="col-md-4">
+                <label for="filtro_cliente" class="form-label">Cliente</label>
+                <input type="text" class="form-control" id="filtro_cliente" name="cliente" value="{{ request.GET.cliente|default:'' }}">
+            </div>
+            
+            <div class="col-md-4">
+                <label for="filtro_produto" class="form-label">Produto</label>
+                <select id="filtro_produto" name="produto" class="form-select">
+                    <option value="">Todos os Produtos</option>
+                    {% for produto in todos_produtos %}
+                    <option value="{{ produto.id }}" {% if request.GET.produto == produto.id|stringformat:"s" %}selected{% endif %}>
+                        {{ produto.nome }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if perms.is_admin or perms.is_gestor or perms.is_financeiro or perms.is_advogado %}
+            <div class="col-md-4">
+                <label for="filtro_vendedor" class="form-label">Vendedor</label>
+                <select id="filtro_vendedor" name="vendedor" class="form-select">
+                    <option value="">Todos os Vendedores</option>
+                    {% for vendedor in todos_vendedores %}
+                    <option value="{{ vendedor.id }}" {% if request.GET.vendedor == vendedor.id|stringformat:"s" %}selected{% endif %}>
+                        {{ vendedor.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <!-- Linha 2: Os 3 Status -->
+            <div class="col-md-4">
+                <label for="filtro_status_venda" class="form-label">Status da Venda</label>
+                <select id="filtro_status_venda" name="status_venda" class="form-select">
+                    <option value="">Todos os Status</option>
+                    {% for chave, valor in status_venda_choices %}
+                    <option value="{{ chave }}" {% if request.GET.status_venda == chave %}selected{% endif %}>
+                        {{ valor }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="filtro_status_pagamento" class="form-label">Status do Pagamento</label>
+                <select id="filtro_status_pagamento" name="status_pagamento" class="form-select">
+                    <option value="">Todos os Status</option>
+                    {% for chave, valor in status_pagamento_choices %}
+                    <option value="{{ chave }}" {% if request.GET.status_pagamento == chave %}selected{% endif %}>
+                        {{ valor }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="filtro_status_contrato" class="form-label">Status do Contrato</label>
+                <select id="filtro_status_contrato" name="status_contrato" class="form-select">
+                    <option value="">Todos os Status</option>
+                    {% for chave, valor in status_contrato_choices %}
+                    <option value="{{ chave }}" {% if request.GET.status_contrato == chave %}selected{% endif %}>
+                        {{ valor }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Linha 3: Datas e Botões -->
+            <div class="col-md-6">
+                <label for="filtro_data_inicio" class="form-label">Data Início</label>
+                <input type="date" class="form-control" id="filtro_data_inicio" name="data_inicio" value="{{ request.GET.data_inicio|default:'' }}">
+            </div>
+            <div class="col-md-6">
+                <label for="filtro_data_fim" class="form-label">Data Fim</label>
+                <input type="date" class="form-control" id="filtro_data_fim" name="data_fim" value="{{ request.GET.data_fim|default:'' }}">
+            </div>
+            
+            <!-- Linha 4: Botões de Ação -->
+            <div class="col-md-3 d-flex align-items-end mt-4">
+                 <a href="{% url 'lista_vendas' %}" class="btn btn-outline-secondary w-100">Limpar Filtros</a>
+            </div>
+            <div class="col-md-3 d-flex align-items-end mt-4">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+            </div>
+            <!-- NOVOS BOTÕES DE EXPORTAÇÃO -->
+            <div class="col-md-3 d-flex align-items-end mt-4">
+                 <button type="button" id="btn-export-csv" class="btn btn-success w-100">Exportar .CSV</button>
+            </div>
+            <div class="col-md-3 d-flex align-items-end mt-4">
+                <button type="button" id="btn-export-xlsx" class="btn btn-success w-100">Exportar .XLSX</button>
+            </div>
+        </form>
+        
+      </div>
+    </div>
+  </div>
+</div>
+<!-- === FIM FILTROS === -->
+
+
+<div class="card shadow-sm">
+    <!-- ... (A Tabela de Vendas não foi alterada) ... -->
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">Cliente</th>
+                        <th scope="col">Produto</th>
+                        <th scope="col">Honorários</th>
+                        <th scope="col">Valor Entrada</th>
+                        <th scope="col">Status Venda</th>
+                        <th scope="col">Status Pagamento</th>
+                        <th scope="col">Status Contrato</th>
+                        <th scope="col">Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for venda in vendas %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'detalhe_venda' venda.id %}">
+                                <strong>#{{ venda.id }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ venda.cliente.nome_completo }}</td>
+                        <td>{{ venda.produto.nome }}</td>
+                        <td>R$ {{ venda.honorarios|intcomma }}</td>
+                        <td>R$ {{ venda.valor_entrada|intcomma|default:"--" }}</td>
+                        <td>
+                            <span class="badge text-dark bg-{{ venda.status_venda|status_to_color }}">
+                                {{ venda.get_status_venda_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge text-dark bg-{{ venda.status_pagamento|status_to_color }}">
+                                {{ venda.get_status_pagamento_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge text-dark bg-{{ venda.status_contrato|status_to_color }}">
+                                {{ venda.get_status_contrato_display }}
+                            </span>
+                        </td>
+                        <td>{{ venda.data_venda|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4">
+                            Nenhuma venda encontrada.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- === SCRIPT ATUALIZADO (Acordeão + Exportação) === -->
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- Script do Acordeão (sem alterações) ---
+    const accordionContent = document.getElementById('collapseFiltros');
+    const storageKey = 'filtroAccordionState';
+    const savedState = localStorage.getItem(storageKey);
+    
+    if (savedState === 'open') {
+        const bsCollapse = new bootstrap.Collapse(accordionContent, { toggle: false });
+        bsCollapse.show();
+    }
+    accordionContent.addEventListener('show.bs.collapse', function () {
+      localStorage.setItem(storageKey, 'open');
+    });
+    accordionContent.addEventListener('hide.bs.collapse', function () {
+      localStorage.setItem(storageKey, 'closed');
+    });
+
+    // --- NOVO: Script de Exportação ---
+    
+    // URLs base (do vendas/urls.py)
+    const exportCsvUrl = "{% url 'export_vendas_csv' %}";
+    const exportXlsxUrl = "{% url 'export_vendas_xlsx' %}";
+    
+    // Botões
+    const btnCsv = document.getElementById('btn-export-csv');
+    const btnXlsx = document.getElementById('btn-export-xlsx');
+    
+    // Formulário
+    const form = document.getElementById('filtros-form');
+
+    function handleExport(baseUrl) {
+        // 1. Pega todos os dados do formulário de filtro
+        const formData = new FormData(form);
+        
+        // 2. Constrói os parâmetros de query (ex: ?cliente=joao&status=pago)
+        const params = new URLSearchParams();
+        formData.forEach((value, key) => {
+            if (value) { // Só adiciona se o filtro tiver um valor
+                params.append(key, value);
+            }
+        });
+        
+        // 3. Abre a nova URL (URL base + parâmetros) numa nova aba
+        window.open(`${baseUrl}?${params.toString()}`);
+    }
+
+    if (btnCsv) {
+        btnCsv.addEventListener('click', function() {
+            handleExport(exportCsvUrl);
+        });
+    }
+    
+    if (btnXlsx) {
+        btnXlsx.addEventListener('click', function() {
+            handleExport(exportXlsxUrl);
+        });
+    }
+});
+</script>
+{% endblock %}

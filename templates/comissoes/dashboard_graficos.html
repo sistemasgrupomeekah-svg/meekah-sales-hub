@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Dashboard de Comissões{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Dashboard de Comissões</h1>
+    {% if perms.is_admin or perms.is_gestor or perms.is_financeiro %}
+    <a href="{% url 'comissoes_fechamento' %}" class="btn btn-success">
+        $ Pagar Comissões
+    </a>
+    {% endif %}
+</div>
+
+<ul class="nav nav-tabs mb-4">
+  <li class="nav-item">
+    <a class="nav-link active" href="#">Gráficos</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="{% url 'comissoes_historico' %}">Histórico de Lotes</a>
+  </li>
+  {% if perms.is_admin or perms.is_gestor or perms.is_financeiro %}
+  <li class="nav-item">
+    <a class="nav-link" href="{% url 'comissoes_fechamento' %}">Fechamento (Pagar)</a>
+  </li>
+  {% endif %}
+</ul>
+
+<div class="accordion mb-4" id="accordionFiltrosComissoes">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="headingOne">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFiltros" aria-expanded="false" aria-controls="collapseFiltros">
+        Filtros de Comissão
+      </button>
+    </h2>
+    <div id="collapseFiltros" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionFiltrosComissoes">
+      <div class="accordion-body">
+        <form method="GET" action="{% url 'comissoes_dashboard' %}" class="row g-3">
+            <div class="col-md-3">
+                <label for="filtro_cliente" class="form-label">Cliente</label>
+                <input type="text" class="form-control" id="filtro_cliente" name="cliente" value="{{ request.GET.cliente|default:'' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="filtro_produto" class="form-label">Produto</label>
+                <select id="filtro_produto" name="produto" class="form-select">
+                    <option value="">Todos</option>
+                    {% for produto in todos_produtos %}
+                    <option value="{{ produto.id }}" {% if request.GET.produto == produto.id|stringformat:"s" %}selected{% endif %}>{{ produto.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if perms.is_admin or perms.is_gestor or perms.is_financeiro %}
+            <div class="col-md-3">
+                <label for="filtro_vendedor" class="form-label">Vendedor</label>
+                <select id="filtro_vendedor" name="vendedor" class="form-select">
+                    <option value="">Todos</option>
+                    {% for vendedor in todos_vendedores %}
+                    <option value="{{ vendedor.id }}" {% if request.GET.vendedor == vendedor.id|stringformat:"s" %}selected{% endif %}>{{ vendedor.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+             <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Aplicar Filtros</button>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data Venda (Início)</label>
+                <input type="date" class="form-control" name="data_inicio" value="{{ query_data_inicio }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Data Venda (Fim)</label>
+                <input type="date" class="form-control" name="data_fim" value="{{ query_data_fim }}">
+            </div>
+             <div class="col-md-3 d-flex align-items-end">
+                 <a href="{% url 'comissoes_dashboard' %}" class="btn btn-outline-secondary w-100">Limpar</a>
+            </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm border-success">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Total de Comissões (Aprovadas)</h6>
+                <h3 class="card-text text-success">R$ {{ kpi_total_comissoes|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Comissão Média por Venda</h6>
+                <h3 class="card-text">R$ {{ kpi_media_comissao|intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Vendas Comissionadas</h6>
+                <h3 class="card-text">{{ kpi_contagem_comissoes }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-12 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Evolução de Comissões (R$)</h5>
+                <div style="position: relative; height:300px;">
+                    <canvas id="comissoesPorMesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% if perms.is_admin or perms.is_gestor or perms.is_financeiro %}
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Comissões por Vendedor</h5>
+                <div style="position: relative; height:300px;">
+                    <canvas id="comissoesPorVendedorChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Comissões por Produto</h5>
+                <div style="position: relative; height:300px;">
+                    <canvas id="comissoesPorProdutoChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Dados vindos da View
+    const comissoesVendedorData = {{ comissoes_por_vendedor_json|safe }};
+    const comissoesProdutoData = {{ comissoes_por_produto_json|safe }};
+    const comissoesMesLabels = {{ comissoes_por_mes_labels_json|safe }};
+    const comissoesMesData = {{ comissoes_por_mes_data_json|safe }};
+
+    const formatadorReais = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    // Gráfico 1: Linha do Tempo
+    new Chart(document.getElementById('comissoesPorMesChart'), {
+        type: 'line',
+        data: {
+            labels: comissoesMesLabels,
+            datasets: [{
+                label: 'Total Comissões (R$)',
+                data: comissoesMesData,
+                borderColor: 'rgb(40, 167, 69)', // Verde para comissões
+                tension: 0.1, fill: false
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { ticks: { callback: (v) => formatadorReais.format(v) } } },
+            plugins: { tooltip: { callbacks: { label: (c) => formatadorReais.format(c.raw) } } }
+        }
+    });
+
+    // Gráfico 2: Por Vendedor (se existir o canvas)
+    const ctxVendedor = document.getElementById('comissoesPorVendedorChart');
+    if (ctxVendedor) {
+        new Chart(ctxVendedor, {
+            type: 'bar',
+            data: {
+                labels: comissoesVendedorData.map(d => d.vendedor__username),
+                datasets: [{
+                    label: 'Total Comissões (R$)',
+                    data: comissoesVendedorData.map(d => d.total),
+                    backgroundColor: 'rgba(40, 167, 69, 0.6)'
+                }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                scales: { x: { ticks: { callback: (v) => formatadorReais.format(v) } } }
+            }
+        });
+    }
+
+    // Gráfico 3: Por Produto
+    new Chart(document.getElementById('comissoesPorProdutoChart'), {
+        type: 'doughnut',
+        data: {
+            labels: comissoesProdutoData.map(d => d.produto__nome),
+            datasets: [{
+                data: comissoesProdutoData.map(d => d.total),
+                backgroundColor: ['#28a745', '#17a2b8', '#ffc107', '#dc3545', '#6c757d']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+</script>
+{% endblock %}

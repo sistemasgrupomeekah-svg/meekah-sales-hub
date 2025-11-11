@@ -633,3 +633,126 @@ def export_vendas_xlsx(request):
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); response['Content-Disposition'] = 'attachment; filename="relatorio_vendas.xlsx"'
     wb.save(response)
     return response
+
+@login_required
+def comissoes_dashboard_graficos(request):
+    """ Novo Dashboard Gráfico de Comissões """
+    perms = _get_user_permissions(request.user)
+    if not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'] or perms['is_vendedor']):
+        # Vendedores TAMBÉM podem ver seu próprio dashboard de comissões
+        messages.error(request, "Você não tem permissão para aceder a esta página.")
+        return redirect('dashboard')
+
+    # 1. Reusa a lógica de filtros base (já lida com permissões de Vendedor vs Outros)
+    vendas_filtradas = _get_vendas_filtradas(request)
+
+    # 2. Filtro ADICIONAL: Apenas vendas com pagamento APROVADO geram comissão real
+    comissoes_filtradas = vendas_filtradas.filter(status_pagamento='aprovado')
+
+    # 3. Cálculo de KPIs de Comissão
+    kpis = comissoes_filtradas.aggregate(
+        total_comissoes=Sum('comissao_calculada_final'),
+        ticket_medio_comissao=Avg('comissao_calculada_final'),
+        contagem_vendas_comissionadas=Count('id')
+    )
+
+    # 4. Dados para Gráficos (Adaptado para usar 'comissao_calculada_final')
+    # Por Vendedor
+    comissoes_por_vendedor = comissoes_filtradas.values('vendedor__username').annotate(total=Sum('comissao_calculada_final')).order_by('-total')
+    comissoes_por_vendedor_payload = [{'vendedor__username': c['vendedor__username'], 'total': float(c['total'] or 0)} for c in comissoes_por_vendedor]
+
+    # Por Produto
+    comissoes_por_produto = comissoes_filtradas.values('produto__nome').annotate(total=Sum('comissao_calculada_final')).order_by('-total')
+    comissoes_por_produto_payload = [{'produto__nome': p['produto__nome'], 'total': float(p['total'] or 0)} for p in comissoes_por_produto]
+
+    # Por Mês (Linha do Tempo)
+    comissoes_por_mes = comissoes_filtradas.annotate(mes=TruncMonth('data_venda')).values('mes').annotate(total=Sum('comissao_calculada_final')).order_by('mes')
+    labels_linha = [c['mes'].strftime('%b/%Y') for c in comissoes_por_mes]
+    data_linha = [float(c['total'] or 0) for c in comissoes_por_mes]
+
+    # 5. Contexto para Filtros (Mesmos do Dashboard de Vendas)
+    todos_vendedores = User.objects.filter(is_superuser=False, is_active=True).order_by('username')
+    todos_produtos = Produto.objects.all().order_by('nome')
+
+    # Datas padrão para os filtros na tela
+    today = datetime.now().date()
+    default_start_str = (today - timedelta(days=30)).strftime('%Y-%m-%d')
+    default_end_str = today.strftime('%Y-%m-%d')
+
+    context = {
+        'perms': perms,
+        # KPIs
+        'kpi_total_comissoes': kpis.get('total_comissoes') or 0,
+        'kpi_media_comissao': kpis.get('ticket_medio_comissao') or 0,
+        'kpi_contagem_comissoes': kpis.get('contagem_vendas_comissionadas') or 0,
+        # Gráficos JSON
+        'comissoes_por_vendedor_json': json.dumps(comissoes_por_vendedor_payload),
+        'comissoes_por_produto_json': json.dumps(comissoes_por_produto_payload),
+        'comissoes_por_mes_labels_json': json.dumps(labels_linha),
+        'comissoes_por_mes_data_json': json.dumps(data_linha),
+        # Filtros
+        'todos_vendedores': todos_vendedores,
+        'todos_produtos': todos_produtos,
+        'query_data_inicio': request.GET.get('data_inicio', default_start_str),
+        'query_data_fim': request.GET.get('data_fim', default_end_str),
+    }
+    return render(request, 'comissoes/dashboard_graficos.html', context)
+
+@login_required
+def comissoes_historico_lotes(request):
+    """ Histórico de Lotes com Filtros """
+    perms = _get_user_permissions(request.user)
+    if not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'] or perms['is_vendedor']):
+         messages.error(request, "Você não tem permissão para aceder a esta página.")
+         return redirect('dashboard')
+
+    # 1. Queryset Base (respeitando permissões)
+    if perms['is_vendedor'] and not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro']):
+        lotes_pagos = LotePagamentoComissao.objects.filter(vendedor=request.user)
+    else:
+        lotes_pagos = LotePagamentoComissao.objects.all()
+
+    # 2. Captura dos Parâmetros de Filtro
+    query_vendedor = request.GET.get('vendedor', '')
+    query_status = request.GET.get('status', '')
+    query_data_inicio = request.GET.get('data_inicio', '')
+    query_data_fim = request.GET.get('data_fim', '')
+
+    # 3. Aplicação dos Filtros
+    # Filtro de Vendedor (só aplica se o usuário tiver permissão para ver todos)
+    if (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro']) and query_vendedor:
+        lotes_pagos = lotes_pagos.filter(vendedor_id=query_vendedor)
+
+    # Filtro de Status
+    if query_status:
+        lotes_pagos = lotes_pagos.filter(status=query_status)
+
+    # Filtro de Data (pela data de fechamento do lote)
+    if query_data_inicio:
+        lotes_pagos = lotes_pagos.filter(data_fechamento__gte=query_data_inicio)
+    if query_data_fim:
+        try:
+            # Ajuste para incluir o dia final inteiro
+            data_fim_dt = datetime.strptime(query_data_fim, '%Y-%m-%d').date() + timedelta(days=1)
+            lotes_pagos = lotes_pagos.filter(data_fechamento__lt=data_fim_dt)
+        except (ValueError, TypeError):
+            pass
+
+    # 4. Ordenação final
+    lotes_pagos = lotes_pagos.order_by('-data_fechamento')
+
+    # 5. Contexto para os Dropdowns
+    todos_vendedores = User.objects.filter(is_superuser=False, is_active=True).order_by('username')
+
+    context = {
+        'lotes_pagos': lotes_pagos,
+        'perms': perms,
+        'todos_vendedores': todos_vendedores,
+        'status_lote_choices': LotePagamentoComissao.STATUS_CHOICES, # Passamos as opções do model
+        # Preserva os valores dos filtros no template
+        'query_vendedor': query_vendedor,
+        'query_status': query_status,
+        'query_data_inicio': query_data_inicio,
+        'query_data_fim': query_data_fim,
+    }
+    return render(request, 'comissoes/historico_lotes.html', context)

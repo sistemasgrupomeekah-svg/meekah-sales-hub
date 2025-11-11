@@ -7,10 +7,8 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h2">Lista de Vendas</h1>
-    <!-- (Botão de Nova Venda removido daqui) -->
 </div>
 
-<!-- === FILTROS EM ACORDEÃO (ATUALIZADO) === -->
 <div class="accordion mb-4" id="accordionFiltros">
   <div class="accordion-item">
     <h2 class="accordion-header" id="headingOne">
@@ -21,10 +19,8 @@
     <div id="collapseFiltros" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionFiltros">
       <div class="accordion-body">
         
-        <!-- O <form> agora tem um ID para o JS o encontrar -->
         <form method="GET" action="{% url 'lista_vendas' %}" class="row g-3" id="filtros-form">
             
-            <!-- Linha 1: Cliente, Vendedor, Produto -->
             <div class="col-md-4">
                 <label for="filtro_cliente" class="form-label">Cliente</label>
                 <input type="text" class="form-control" id="filtro_cliente" name="cliente" value="{{ request.GET.cliente|default:'' }}">
@@ -56,7 +52,6 @@
             </div>
             {% endif %}
 
-            <!-- Linha 2: Os 3 Status -->
             <div class="col-md-4">
                 <label for="filtro_status_venda" class="form-label">Status da Venda</label>
                 <select id="filtro_status_venda" name="status_venda" class="form-select">
@@ -93,7 +88,6 @@
                 </select>
             </div>
 
-            <!-- Linha 3: Datas e Botões -->
             <div class="col-md-6">
                 <label for="filtro_data_inicio" class="form-label">Data Início</label>
                 <input type="date" class="form-control" id="filtro_data_inicio" name="data_inicio" value="{{ request.GET.data_inicio|default:'' }}">
@@ -103,14 +97,12 @@
                 <input type="date" class="form-control" id="filtro_data_fim" name="data_fim" value="{{ request.GET.data_fim|default:'' }}">
             </div>
             
-            <!-- Linha 4: Botões de Ação -->
             <div class="col-md-3 d-flex align-items-end mt-4">
                  <a href="{% url 'lista_vendas' %}" class="btn btn-outline-secondary w-100">Limpar Filtros</a>
             </div>
             <div class="col-md-3 d-flex align-items-end mt-4">
                 <button type="submit" class="btn btn-primary w-100">Filtrar</button>
             </div>
-            <!-- NOVOS BOTÕES DE EXPORTAÇÃO -->
             <div class="col-md-3 d-flex align-items-end mt-4">
                  <button type="button" id="btn-export-csv" class="btn btn-success w-100">Exportar .CSV</button>
             </div>
@@ -123,25 +115,21 @@
     </div>
   </div>
 </div>
-<!-- === FIM FILTROS === -->
-
-
 <div class="card shadow-sm">
-    <!-- ... (A Tabela de Vendas não foi alterada) ... -->
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="table table-hover align-middle" id="tabelaVendas">
                 <thead class="table-light">
                     <tr>
                         <th scope="col">ID</th>
                         <th scope="col">Cliente</th>
                         <th scope="col">Produto</th>
-                        <th scope="col">Honorários</th>
-                        <th scope="col">Valor Entrada</th>
-                        <th scope="col">Status Venda</th>
-                        <th scope="col">Status Pagamento</th>
-                        <th scope="col">Status Contrato</th>
-                        <th scope="col">Data</th>
+                        <th scope="col" class="col-num">Honorários</th>
+                        <th scope="col" class="col-num">Valor Entrada</th>
+                        <th scope="col" class="col-center">Status Venda</th>
+                        <th scope="col" class="col-center">Status Pagamento</th>
+                        <th scope="col" class="col-center">Status Contrato</th>
+                        <th scope="col" class="col-num">Data</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -154,24 +142,24 @@
                         </td>
                         <td>{{ venda.cliente.nome_completo }}</td>
                         <td>{{ venda.produto.nome }}</td>
-                        <td>R$ {{ venda.honorarios|intcomma }}</td>
-                        <td>R$ {{ venda.valor_entrada|intcomma|default:"--" }}</td>
-                        <td>
+                        <td class="col-num">R$ {{ venda.honorarios|intcomma }}</td>
+                        <td class="col-num">R$ {{ venda.valor_entrada|intcomma|default:"--" }}</td>
+                        <td class="col-center">
                             <span class="badge text-dark bg-{{ venda.status_venda|status_to_color }}">
                                 {{ venda.get_status_venda_display }}
                             </span>
                         </td>
-                        <td>
+                        <td class="col-center">
                             <span class="badge text-dark bg-{{ venda.status_pagamento|status_to_color }}">
                                 {{ venda.get_status_pagamento_display }}
                             </span>
                         </td>
-                        <td>
+                        <td class="col-center">
                             <span class="badge text-dark bg-{{ venda.status_contrato|status_to_color }}">
                                 {{ venda.get_status_contrato_display }}
                             </span>
                         </td>
-                        <td>{{ venda.data_venda|date:"d/m/Y H:i" }}</td>
+                        <td class="col-num">{{ venda.data_venda|date:"d/m/Y H:i" }}</td>
                     </tr>
                     {% empty %}
                     <tr>
@@ -187,11 +175,11 @@
 </div>
 {% endblock %}
 
-<!-- === SCRIPT ATUALIZADO (Acordeão + Exportação) === -->
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- Script do Acordeão (sem alterações) ---
+    
+    // --- Script do Acordeão ---
     const accordionContent = document.getElementById('collapseFiltros');
     const storageKey = 'filtroAccordionState';
     const savedState = localStorage.getItem(storageKey);
@@ -207,46 +195,47 @@ document.addEventListener('DOMContentLoaded', function() {
       localStorage.setItem(storageKey, 'closed');
     });
 
-    // --- NOVO: Script de Exportação ---
-    
-    // URLs base (do vendas/urls.py)
+    // --- Script de Exportação ---
     const exportCsvUrl = "{% url 'export_vendas_csv' %}";
     const exportXlsxUrl = "{% url 'export_vendas_xlsx' %}";
-    
-    // Botões
     const btnCsv = document.getElementById('btn-export-csv');
     const btnXlsx = document.getElementById('btn-export-xlsx');
-    
-    // Formulário
     const form = document.getElementById('filtros-form');
 
     function handleExport(baseUrl) {
-        // 1. Pega todos os dados do formulário de filtro
         const formData = new FormData(form);
-        
-        // 2. Constrói os parâmetros de query (ex: ?cliente=joao&status=pago)
         const params = new URLSearchParams();
         formData.forEach((value, key) => {
-            if (value) { // Só adiciona se o filtro tiver um valor
-                params.append(key, value);
-            }
+            if (value) { params.append(key, value); }
         });
-        
-        // 3. Abre a nova URL (URL base + parâmetros) numa nova aba
         window.open(`${baseUrl}?${params.toString()}`);
     }
 
     if (btnCsv) {
-        btnCsv.addEventListener('click', function() {
-            handleExport(exportCsvUrl);
+        btnCsv.addEventListener('click', function() { handleExport(exportCsvUrl); });
+    }
+    if (btnXlsx) {
+        btnXlsx.addEventListener('click', function() { handleExport(exportXlsxUrl); });
+    }
+    
+    // --- === SCRIPT CORRIGIDO (Tabela Interativa) === ---
+    const dataTableVendas = document.getElementById('tabelaVendas');
+    if (dataTableVendas) {
+        new simpleDatatables.DataTable(dataTableVendas, {
+            searchable: true,
+            sortable: true,
+            perPage: 15,
+            perPageSelect: [15, 25, 50, 100],
+            labels: {
+                placeholder: "Pesquisar nesta lista...",
+                // CORREÇÃO: Removido o "{select}"
+                perPage: "vendas por página", 
+                noRows: "Nenhuma venda encontrada",
+                info: "A mostrar {start} a {end} de {rows} vendas",
+            }
         });
     }
     
-    if (btnXlsx) {
-        btnXlsx.addEventListener('click', function() {
-            handleExport(exportXlsxUrl);
-        });
-    }
 });
 </script>
 {% endblock %}

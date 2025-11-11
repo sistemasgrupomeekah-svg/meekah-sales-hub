@@ -1,7 +1,8 @@
 from django.contrib import admin
+from django import forms
 from .models import (
     Produto, Cliente, Venda, AnexoVenda, FormaPagamento, 
-    RegraComissaoVendedor, LotePagamentoComissao, TransacaoPagamentoComissao, AnexoLoteComissao
+    RegraComissaoVendedor, LotePagamentoComissao, TransacaoPagamentoComissao, AnexoLoteComissao, MetaVenda
 )
 from django.utils.html import format_html 
 
@@ -62,3 +63,34 @@ class LotePagamentoComissaoAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request): return False
     def has_delete_permission(self, request, obj=None): return False
+
+class MetaVendaForm(forms.ModelForm):
+    """ Garante que a validação clean() do modelo é executada no Admin """
+    class Meta:
+        model = MetaVenda
+        fields = '__all__'
+
+@admin.register(MetaVenda)
+class MetaVendaAdmin(admin.ModelAdmin):
+    form = MetaVendaForm # <-- Usa o form customizado
+    
+    # Atualiza o list_display
+    list_display = ('data_inicio', 'data_fim', 'tipo_meta', 'valor_meta')
+    list_filter = ('grupo', 'vendedor', 'data_inicio') # <-- Adiciona grupo ao filtro
+    search_fields = ('vendedor__username', 'grupo__name')
+    
+    # Organiza os campos no admin
+    fieldsets = (
+        (None, {
+            'fields': ('valor_meta', ('data_inicio', 'data_fim'))
+        }),
+        ('Tipo de Meta (Escolha apenas um, ou deixe ambos em branco para Meta Geral)', {
+            'fields': ('vendedor', 'grupo')
+        }),
+    )
+
+    def tipo_meta(self, obj):
+        if obj.vendedor: return f"Individual ({obj.vendedor.username})"
+        if obj.grupo: return f"Equipa ({obj.grupo.name})"
+        return "Geral"
+    tipo_meta.short_description = "Tipo de Meta"

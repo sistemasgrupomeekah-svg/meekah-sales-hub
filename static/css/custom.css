@@ -1,0 +1,170 @@
+/* static/css/custom.css */
+
+/* * 1. Sobrescreve as variáveis de cor raiz do Bootstrap 
+ * com a paleta do Meekah Group.
+ */
+:root {
+    --bs-primary: #03889a;     /* Azul-petróleo (Institucional) */
+    --bs-primary-rgb: 3, 136, 154;  /* Valor RGB do Azul */
+    
+    /* Usamos Laranja para 'danger' (Alertas de urgência) */
+    --bs-danger: #e05c2e;      
+    --bs-danger-rgb: 224, 92, 46;
+
+    /* Usamos Amarelo para 'warning' (Avisos) */
+    --bs-warning: #ffcc00;     
+    --bs-warning-rgb: 255, 204, 0;
+
+    /* (Deixamos 'success' como o verde padrão do Bootstrap para 'Aprovado') */
+}
+
+/* * 2. Aplica as cores de fundo e texto padrão 
+ */
+body {
+    background-color: #f4f4f4 !important; /* Fundo geral */
+    color: #333333 !important;           /* Texto principal */
+    font-family: 'Inter', sans-serif;
+}
+
+/* * 3. Ajusta links, botões e a barra de navegação
+ */
+
+/* Links usarão a cor primária */
+a {
+    color: #03889a;
+    text-decoration: none;
+}
+a:hover {
+    color: #026a78; /* Um tom mais escuro do azul-petróleo */
+}
+
+/* Botão Primário (Salvar, Filtrar, etc.) */
+.btn-primary {
+    background-color: #03889a;
+    border-color: #03889a;
+}
+.btn-primary:hover {
+    background-color: #026a78;
+    border-color: #026a78;
+}
+
+/* Navbar (cabeçalho) */
+.navbar.bg-white {
+    box-shadow: 0 2px 4px rgba(0,0,0,.05) !important; /* Sombra mais suave */
+}
+
+/* * 4. Ajusta as cores dos Status (Badges)
+ * O seu vendas_extras.py usa 'warning' e 'danger'.
+ * Como sobrescrevemos essas variáveis, as cores serão aplicadas.
+ * Só precisamos de garantir que o texto do 'warning' (amarelo) seja escuro.
+ */
+.badge.bg-warning {
+    color: #333333 !important;
+}
+
+/* Títulos (H1, H2, etc.) com um peso um pouco maior */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+}
+
+/* Suaviza os "Cards" */
+.card {
+    border: none; /* Remove a borda padrão */
+    border-radius: 0.5rem; /* Bordas mais arredondadas */
+    box-shadow: 0 4px 12px rgba(0,0,0,.05) !important; /* Sombra mais suave */
+}
+.card-header {
+    background-color: transparent; /* Cabeçalho limpo */
+    border-bottom: 1px solid #eee;
+    font-weight: 700;
+    padding: 1.25rem;
+}
+
+/* Melhora as abas de navegação */
+.nav-tabs {
+    border-bottom: 1px solid #ddd;
+}
+.nav-tabs .nav-link {
+    border: 1px solid transparent;
+    border-bottom: none;
+    padding: 0.75rem 1.25rem;
+    font-weight: 500;
+    color: #555; /* Cor cinza para abas inativas */
+}
+.nav-tabs .nav-link.active {
+    background-color: #f4f4f4 !important; /* Cor de fundo do body */
+    border-color: #ddd !important;
+    border-bottom-color: #f4f4f4 !important; /* Faz a aba "conectar" com o body */
+    color: #03889a !important; /* Cor primária */
+    font-weight: 700;
+}
+
+/* * 5. CORREÇÃO DE LEITURA DOS STATUS (Badges)
+ * Força o texto para branco em todos os badges, exceto no 'warning' (amarelo).
+*/
+.badge {
+    /* Define o branco como cor padrão para todos os badges */
+    color: #FFFFFF !important; 
+    font-weight: 500; /* Deixa a fonte um pouco mais leve */
+}
+
+/* * Sobrescreve APENAS o 'warning' (amarelo) para ter texto escuro,
+ * como já tínhamos feito.
+*/
+.badge.bg-warning {
+    color: #333333 !important;
+}
+
+.navbar-nav .nav-link.disabled {
+    color: #333333 !important;
+    opacity: 1 !important; /* Garante que não fica transparente */
+}
+
+/* * 7. MICRO-INTERAÇÕES (Hover)
+ */
+
+/* Transição suave para todos os elementos */
+.btn, .card, .nav-tabs .nav-link, tbody tr {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Efeito "Levantar" nos Cards e Linhas de Tabela */
+.card:hover,
+#tabelaMetas tbody tr:hover,
+#tabelaVendas tbody tr:hover,
+#tabelaLotes tbody tr:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,.07) !important;
+}
+
+/* Efeito de "hover" mais suave nos botões */
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(3, 136, 154, 0.3); /* Sombra na cor do botão */
+}
+.btn-secondary:hover,
+.btn-outline-secondary:hover {
+    transform: translateY(-2px);
+}
+
+/* Efeito de "hover" nas abas de navegação */
+.nav-tabs .nav-link:hover {
+    transform: translateY(-2px);
+    color: #03889a !important; /* Cor primária */
+}
+
+/* Remove a regra global 'nowrap' e aplica apenas o alinhamento vertical */
+.dataTable-table th,
+.dataTable-table td {
+    vertical-align: middle; /* Alinha verticalmente os badges e o texto */
+}
+
+/* Classes de alinhamento reutilizáveis */
+.table .col-num {
+    text-align: right;
+    white-space: nowrap; /* Impede quebra de linha em números/datas */
+}
+.table .col-center {
+    text-align: center;
+    white-space: nowrap; /* Impede quebra de linha em status */
+}

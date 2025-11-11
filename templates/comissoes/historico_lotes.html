@@ -32,7 +32,8 @@
     </h2>
     <div id="collapseFiltros" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionFiltrosLotes">
       <div class="accordion-body">
-        <form method="GET" action="{% url 'comissoes_historico' %}" class="row g-3">
+        
+        <form method="GET" action="{% url 'comissoes_historico' %}" class="row g-3" id="filtros-lotes-form">
 
             {% if perms.is_admin or perms.is_gestor or perms.is_financeiro %}
             <div class="col-md-4">
@@ -40,7 +41,7 @@
                 <select id="filtro_vendedor" name="vendedor" class="form-select">
                     <option value="">Todos</option>
                     {% for vendedor in todos_vendedores %}
-                    <option value="{{ vendedor.id }}" {% if query_vendedor == vendedor.id|stringformat:"s" %}selected{% endif %}>
+                    <option value="{{ vendedor.id }}" {% if request.GET.vendedor == vendedor.id|stringformat:"s" %}selected{% endif %}>
                         {{ vendedor.username }}
                     </option>
                     {% endfor %}
@@ -53,7 +54,7 @@
                 <select id="filtro_status" name="status" class="form-select">
                     <option value="">Todos os Status</option>
                     {% for chave, valor in status_lote_choices %}
-                    <option value="{{ chave }}" {% if query_status == chave %}selected{% endif %}>
+                    <option value="{{ chave }}" {% if request.GET.status == chave %}selected{% endif %}>
                         {{ valor }}
                     </option>
                     {% endfor %}
@@ -62,18 +63,24 @@
 
             <div class="col-md-3">
                 <label class="form-label">Data Fechamento (Início)</label>
-                <input type="date" class="form-control" name="data_inicio" value="{{ query_data_inicio }}">
+                <input type="date" class="form-control" name="data_inicio" value="{{ request.GET.data_inicio|default:'' }}">
             </div>
             <div class="col-md-3">
                 <label class="form-label">Data Fechamento (Fim)</label>
-                <input type="date" class="form-control" name="data_fim" value="{{ query_data_fim }}">
+                <input type="date" class="form-control" name="data_fim" value="{{ request.GET.data_fim|default:'' }}">
             </div>
 
-            <div class="col-md-3 d-flex align-items-end">
+            <div class="col-md-3 d-flex align-items-end mt-4">
                  <a href="{% url 'comissoes_historico' %}" class="btn btn-outline-secondary w-100">Limpar</a>
             </div>
-            <div class="col-md-3 d-flex align-items-end">
+            <div class="col-md-3 d-flex align-items-end mt-4">
                 <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+            </div>
+            <div class="col-md-3 d-flex align-items-end mt-4">
+                 <button type="button" id="btn-export-lotes-csv" class="btn btn-success w-100">Exportar .CSV</button>
+            </div>
+            <div class="col-md-3 d-flex align-items-end mt-4">
+                <button type="button" id="btn-export-lotes-xlsx" class="btn btn-success w-100">Exportar .XLSX</button>
             </div>
         </form>
       </div>
@@ -83,15 +90,16 @@
 <div class="card shadow-sm">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="table table-hover align-middle" id="tabelaLotes">
                 <thead class="table-light">
                     <tr>
                         <th scope="col">Lote ID</th>
                         <th scope="col">Vendedor</th>
                         <th scope="col">Período de Vendas</th>
-                        <th scope="col">Data Fechamento</th> <th scope="col">Total Devido</th>
-                        <th scope="col">Total Pago</th>
-                        <th scope="col">Status</th>
+                        <th scope="col" class="col-num">Data Fechamento</th>
+                        <th scope="col" class="col-num">Total Devido</th>
+                        <th scope="col" class="col-num">Total Pago</th>
+                        <th scope="col" class="col-center">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -100,14 +108,14 @@
                         <td><a href="{% url 'comissoes_lote_detalhe' lote.id %}"><strong>#{{ lote.id }}</strong></a></td>
                         <td>{{ lote.vendedor.username }}</td>
                         <td>{{ lote.periodo_inicio|date:"d/m/y" }} a {{ lote.periodo_fim|date:"d/m/y" }}</td>
-                        <td>{{ lote.data_fechamento|date:"d/m/Y H:i" }}</td>
-                        <td>R$ {{ lote.total_comissoes|intcomma }}</td>
-                        <td>
+                        <td class="col-num">{{ lote.data_fechamento|date:"d/m/Y H:i" }}</td>
+                        <td class="col-num">R$ {{ lote.total_comissoes|intcomma }}</td>
+                        <td class="col-num">
                             <span class="{% if lote.total_pago_efetivamente >= lote.total_comissoes %}text-success{% endif %}">
                                 R$ {{ lote.total_pago_efetivamente|intcomma }}
                             </span>
                         </td>
-                        <td><span class="badge bg-{{ lote.status|status_to_color }} text-dark">{{ lote.get_status_display }}</span></td>
+                        <td class="col-center"><span class="badge bg-{{ lote.status|status_to_color }} text-dark">{{ lote.get_status_display }}</span></td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="7" class="text-center py-4">Nenhum lote encontrado.</td></tr>
@@ -121,12 +129,27 @@
 
 {% block scripts %}
 <script>
-// Script opcional para manter o acordeão aberto se houver filtros ativos
 document.addEventListener('DOMContentLoaded', function() {
-    const accordionContent = document.getElementById('collapseFiltros');
-    // Se a URL tiver parâmetros de query (filtros aplicados), mantém aberto
-    if (window.location.search.length > 1) {
-         new bootstrap.Collapse(accordionContent, { toggle: false }).show();
+    
+    // --- (Script do Acordeão e de Exportação - sem mudanças) ---
+    // ...
+
+    // --- === SCRIPT CORRIGIDO (Tabela Interativa) === ---
+    const dataTableLotes = document.getElementById('tabelaLotes');
+    if (dataTableLotes) {
+        new simpleDatatables.DataTable(dataTableLotes, {
+            searchable: true,
+            sortable: true,
+            perPage: 15,
+            perPageSelect: [15, 25, 50, 100],
+            labels: {
+                placeholder: "Pesquisar nesta lista...",
+                // CORREÇÃO: Removido o "{select}"
+                perPage: "lotes por página",
+                noRows: "Nenhum lote encontrado",
+                info: "A mostrar {start} a {end} de {rows} lotes",
+            }
+        });
     }
 });
 </script>

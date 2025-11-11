@@ -43,3 +43,11 @@ def user_can_manage_comissoes(user):
     if user.is_superuser: return True
     if user.groups.filter(name__in=['Gestor', 'Financeiro']).exists(): return True
     return False
+
+@register.simple_tag
+def user_can_manage_metas(user):
+    """ Verifica se o user é Admin ou Gestor para gerir metas """
+    if not user.is_authenticated: return False
+    if user.is_superuser: return True
+    if user.groups.filter(name='Gestor').exists(): return True
+    return False

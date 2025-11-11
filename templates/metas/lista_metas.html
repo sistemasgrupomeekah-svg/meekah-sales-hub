@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Gestão de Metas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Gestão de Metas</h1>
+    <a href="{% url 'criar_meta' %}" class="btn btn-primary">
+        + Adicionar Nova Meta
+    </a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="tabelaMetas">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Período</th>
+                        <th scope="col">Valor da Meta (R$)</th>
+                        <th scope="col">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for meta in metas %}
+                    <tr>
+                        <td>
+                            {% if meta.vendedor %}
+                                <strong>Individual:</strong> {{ meta.vendedor.get_full_name|default:meta.vendedor.username }}
+                            {% elif meta.grupo %}
+                                <strong>Equipa:</strong> {{ meta.grupo.name }}
+                            {% else %}
+                                <strong>GERAL</strong>
+                            {% endif %}
+                        </td>
+                        <td>{{ meta.data_inicio|date:"d/m/Y" }} a {{ meta.data_fim|date:"d/m/Y" }}</td>
+                        <td>R$ {{ meta.valor_meta|intcomma }}</td>
+                        <td>
+                            <a href="{% url 'editar_meta' meta.id %}" class="btn btn-sm btn-outline-secondary">
+                                Editar
+                            </a>
+                            <a href="{% url 'apagar_meta' meta.id %}" class="btn btn-sm btn-outline-danger">
+                                Apagar
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4">
+                            Nenhuma meta cadastrada.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dataTableMetas = document.getElementById('tabelaMetas');
+    if (dataTableMetas) {
+        new simpleDatatables.DataTable(dataTableMetas, {
+            searchable: true,
+            sortable: true,
+            perPage: 15,
+            perPageSelect: [15, 25, 50, 100],
+            labels: {
+                placeholder: "Pesquisar nesta lista...",
+                // CORREÇÃO: Removido o "{select}"
+                perPage: "metas por página",
+                noRows: "Nenhuma meta encontrada",
+                info: "A mostrar {start} a {end} de {rows} metas",
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

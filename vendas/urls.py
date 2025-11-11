@@ -21,6 +21,14 @@ urlpatterns = [
     # --- Rotas de Exportação ---
     path('vendas/export/csv/', views.export_vendas_csv, name='export_vendas_csv'),
     path('vendas/export/xlsx/', views.export_vendas_xlsx, name='export_vendas_xlsx'),
+    path('comissoes/export/csv/', views.export_lotes_csv, name='export_lotes_csv'),
+    path('comissoes/export/xlsx/', views.export_lotes_xlsx, name='export_lotes_xlsx'),
+
+    # --- Rotas de Gestão de Metas CRUD ---
+    path('metas/', views.lista_metas, name='lista_metas'),
+    path('metas/nova/', views.criar_meta, name='criar_meta'),
+    path('metas/<int:meta_id>/editar/', views.editar_meta, name='editar_meta'),
+    path('metas/<int:meta_id>/apagar/', views.apagar_meta, name='apagar_meta'),
 
     # (Resto das rotas)
     path('venda/<int:venda_id>/', views.detalhe_venda, name='detalhe_venda'),

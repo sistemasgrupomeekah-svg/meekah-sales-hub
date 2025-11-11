@@ -1,0 +1,62 @@
+/* static/css/custom.css */
+
+/* * 1. Sobrescreve as variáveis de cor raiz do Bootstrap 
+ * com a paleta do Meekah Group.
+ */
+:root {
+    --bs-primary: #03889a;     /* Azul-petróleo (Institucional) */
+    --bs-primary-rgb: 3, 136, 154;  /* Valor RGB do Azul */
+    
+    /* Usamos Laranja para 'danger' (Alertas de urgência) */
+    --bs-danger: #e05c2e;      
+    --bs-danger-rgb: 224, 92, 46;
+
+    /* Usamos Amarelo para 'warning' (Avisos) */
+    --bs-warning: #ffcc00;     
+    --bs-warning-rgb: 255, 204, 0;
+
+    /* (Deixamos 'success' como o verde padrão do Bootstrap para 'Aprovado') */
+}
+
+/* * 2. Aplica as cores de fundo e texto padrão 
+ */
+body {
+    background-color: #f4f4f4 !important; /* Fundo geral */
+    color: #333333 !important;           /* Texto principal */
+}
+
+/* * 3. Ajusta links, botões e a barra de navegação
+ */
+
+/* Links usarão a cor primária */
+a {
+    color: #03889a;
+    text-decoration: none;
+}
+a:hover {
+    color: #026a78; /* Um tom mais escuro do azul-petróleo */
+}
+
+/* Botão Primário (Salvar, Filtrar, etc.) */
+.btn-primary {
+    background-color: #03889a;
+    border-color: #03889a;
+}
+.btn-primary:hover {
+    background-color: #026a78;
+    border-color: #026a78;
+}
+
+/* Navbar (cabeçalho) */
+.navbar.bg-white {
+    box-shadow: 0 2px 4px rgba(0,0,0,.05) !important; /* Sombra mais suave */
+}
+
+/* * 4. Ajusta as cores dos Status (Badges)
+ * O seu vendas_extras.py usa 'warning' e 'danger'.
+ * Como sobrescrevemos essas variáveis, as cores serão aplicadas.
+ * Só precisamos de garantir que o texto do 'warning' (amarelo) seja escuro.
+ */
+.badge.bg-warning {
+    color: #333333 !important;
+}

@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load humanize %} 
+
+{% block title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">{{ form_title }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {{ form.non_field_errors }}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.data_inicio.id_for_label }}" class="form-label">{{ form.data_inicio.label }}</label>
+                            {{ form.data_inicio }}
+                            {% if form.data_inicio.errors %}<div class="invalid-feedback d-block">{{ form.data_inicio.errors.as_text }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.data_fim.id_for_label }}" class="form-label">{{ form.data_fim.label }}</label>
+                            {{ form.data_fim }}
+                            {% if form.data_fim.errors %}<div class="invalid-feedback d-block">{{ form.data_fim.errors.as_text }}</div>{% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.valor_meta.id_for_label }}" class="form-label">{{ form.valor_meta.label }}</label>
+                        {{ form.valor_meta }}
+                        {% if form.valor_meta.errors %}<div class="invalid-feedback d-block">{{ form.valor_meta.errors.as_text }}</div>{% endif %}
+                    </div>
+                    
+                    <hr class="my-4">
+                    <p class="text-muted">Tipo de Meta (Deixe ambos em branco para "Geral")</p>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.vendedor.id_for_label }}" class="form-label">{{ form.vendedor.label }}</label>
+                        {{ form.vendedor }}
+                        {% if form.vendedor.errors %}<div class="invalid-feedback d-block">{{ form.vendedor.errors.as_text }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.grupo.id_for_label }}" class="form-label">{{ form.grupo.label }}</label>
+                        {{ form.grupo }}
+                        {% if form.grupo.errors %}<div class="invalid-feedback d-block">{{ form.grupo.errors.as_text }}</div>{% endif %}
+                    </div>
+
+                    <hr class="my-4">
+                    
+                    <div class="d-flex justify-content-end">
+                        <a href="{% url 'lista_metas' %}" class="btn btn-secondary me-2">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            Salvar Meta
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -4,6 +4,9 @@ from django.db import models
 from django.contrib.auth.models import User 
 from decimal import Decimal
 from django.db.models import Sum # Para calcular a soma
+from django.utils import timezone # <-- Importado para o MetaVenda
+from django.contrib.auth.models import Group # <-- Importar Grupo
+from django.core.exceptions import ValidationError # <-- Importar
 
 # --- Funções de Upload ---
 
@@ -234,7 +237,6 @@ class TransacaoPagamentoComissao(models.Model):
     data_pagamento = models.DateTimeField(auto_now_add=True, verbose_name="Data do Pagamento")
     valor_pago = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Pago (R$)")
     
-    # ATUALIZADO: Renomeado (como eu tinha feito por engano antes)
     anexo_comprovativo_pagamento = models.FileField(
         upload_to=get_anexo_transacao_path, 
         verbose_name="Anexo (Comprovativo de Pagamento)",
@@ -273,3 +275,59 @@ class AnexoLoteComissao(models.Model):
     
     def __str__(self):
         return f"Anexo (NF) do Lote #{self.lote.id}"
+
+# --- NOVO MODELO (Metas) ---
+
+class MetaVenda(models.Model):
+    data_inicio = models.DateField(verbose_name="Data de Início")
+    data_fim = models.DateField(verbose_name="Data de Fim")
+    
+    valor_meta = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Valor da Meta (R$)")
+    
+    vendedor = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name="metas",
+        null=True, 
+        blank=True, 
+        verbose_name="Vendedor (Individual)",
+        help_text="Selecione um vendedor para uma meta individual."
+    )
+    
+    # --- NOVO CAMPO ---
+    grupo = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        verbose_name="Equipa (Grupo)",
+        help_text="Selecione um grupo para uma meta de equipa."
+    )
+    # --- FIM NOVO CAMPO ---
+
+    class Meta:
+        verbose_name = "Meta de Venda"
+        verbose_name_plural = "Metas de Venda"
+        ordering = ['data_inicio', 'vendedor', 'grupo']
+        # Garante que não há conflitos
+        unique_together = ('data_inicio', 'data_fim', 'vendedor', 'grupo')
+
+    def clean(self):
+        """ Regra de Negócio: Uma meta não pode ser Individual E de Equipa ao mesmo tempo. """
+        if self.vendedor and self.grupo:
+            raise ValidationError("Uma meta não pode ser definida para um Vendedor individual E uma Equipa ao mesmo tempo. Escolha apenas um.")
+
+    def __str__(self):
+        if self.vendedor:
+            tipo = f"Individual ({self.vendedor.username})"
+        elif self.grupo:
+            tipo = f"Equipa ({self.grupo.name})"
+        else:
+            tipo = "GERAL"
+        return f"Meta {self.data_inicio.strftime('%d/%m/%Y')} a {self.data_fim.strftime('%d/%m/%Y')} ({tipo})"
+
+    @property
+    def is_ativa(self):
+        """ Propriedade para verificar se a meta está ativa hoje. """
+        today = timezone.now().date()
+        return self.data_inicio <= today <= self.data_fim

@@ -1,7 +1,8 @@
 from django import forms
+from django.contrib.auth.models import Group, User
 from .models import (
     Venda, Cliente, Produto, FormaPagamento, AnexoVenda, 
-    LotePagamentoComissao, TransacaoPagamentoComissao, AnexoLoteComissao
+    LotePagamentoComissao, TransacaoPagamentoComissao, AnexoLoteComissao, MetaVenda
 )
 from decimal import Decimal 
 
@@ -260,3 +261,46 @@ class AnexoLoteForm(forms.ModelForm):
     class Meta:
         model = AnexoLoteComissao
         fields = ['anexo_nf_vendedor']
+
+class MetaVendaForm(forms.ModelForm):
+    """ Formulário para Admin/Gestor criar ou editar metas no front-end. """
+    
+    # Filtra o queryset para mostrar apenas vendedores (não Admin/Financeiro/etc.)
+    vendedor = forms.ModelChoiceField(
+        queryset=User.objects.filter(groups__name='Vendedor'),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Vendedor (Individual)"
+    )
+    
+    # Filtra para mostrar apenas grupos relevantes (opcional, mas boa prática)
+    grupo = forms.ModelChoiceField(
+        queryset=Group.objects.exclude(name__in=['Gestor', 'Financeiro', 'Advogado']),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Equipa (Grupo)"
+    )
+
+    class Meta:
+        model = MetaVenda
+        fields = [
+            'data_inicio', 'data_fim', 'valor_meta', 
+            'vendedor', 'grupo'
+        ]
+        widgets = {
+            'data_inicio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'data_fim': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'valor_meta': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ex: 50000.00'}),
+        }
+        
+    def clean(self):
+        """ Re-aplica a validação do modelo """
+        cleaned_data = super().clean()
+        vendedor = cleaned_data.get('vendedor')
+        grupo = cleaned_data.get('grupo')
+        
+        if vendedor and grupo:
+            raise forms.ValidationError(
+                "Uma meta não pode ser definida para um Vendedor individual E uma Equipa ao mesmo tempo. Escolha apenas um."
+            )
+        return cleaned_data

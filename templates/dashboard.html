@@ -9,7 +9,6 @@
     <h1 class="h2">Dashboard</h1>
 </div>
 
-<!-- === FILTROS === -->
 <div class="accordion mb-4" id="accordionFiltros">
   <div class="accordion-item">
     <h2 class="accordion-header" id="headingOne">
@@ -22,7 +21,6 @@
         
         <form method="GET" action="{% url 'dashboard' %}" class="row g-3">
             
-            <!-- Linha 1: Cliente, Vendedor, Produto -->
             <div class="col-md-4">
                 <label for="filtro_cliente" class="form-label">Cliente</label>
                 <input type="text" class="form-control" id="filtro_cliente" name="cliente" value="{{ request.GET.cliente|default:'' }}">
@@ -40,7 +38,6 @@
                 </select>
             </div>
 
-            <!-- Filtro de Vendedor -->
             {% if perms.is_admin or perms.is_gestor or perms.is_financeiro or perms.is_advogado %}
             <div class="col-md-4">
                 <label for="filtro_vendedor" class="form-label">Vendedor</label>
@@ -55,7 +52,6 @@
             </div>
             {% endif %}
 
-            <!-- Linha 2: Os 3 Status -->
             <div class="col-md-4">
                 <label for="filtro_status_venda" class="form-label">Status da Venda</label>
                 <select id="filtro_status_venda" name="status_venda" class="form-select">
@@ -92,7 +88,6 @@
                 </select>
             </div>
 
-            <!-- Linha 3: Datas e Botões -->
             <div class="col-md-3">
                 <label for="filtro_data_inicio" class="form-label">Data Início</label>
                 <input type="date" class="form-control" id="filtro_data_inicio" name="data_inicio" value="{{ query_data_inicio }}">
@@ -113,11 +108,7 @@
     </div>
   </div>
 </div>
-<!-- === FIM FILTROS === -->
-
-<!-- === KPIs (CARDS) === -->
 <div class="row mb-4">
-    <!-- Card Total de Vendas (Honorários) -->
     <div class="col-md-4 mb-3">
         <div class="card shadow-sm">
             <div class="card-body">
@@ -126,7 +117,6 @@
             </div>
         </div>
     </div>
-    <!-- Card Ticket Médio -->
     <div class="col-md-4 mb-3">
         <div class="card shadow-sm">
             <div class="card-body">
@@ -135,7 +125,6 @@
             </div>
         </div>
     </div>
-    <!-- Card Contagem de Vendas -->
     <div class="col-md-4 mb-3">
         <div class="card shadow-sm">
             <div class="card-body">
@@ -145,19 +134,76 @@
         </div>
     </div>
 </div>
-<!-- === FIM KPIs === -->
-
-<!-- === GRÁFICOS === -->
+{% if meta_data_list %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Acompanhamento de Metas Ativas</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0 align-middle" id="tabelaMetasDashboard">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Tipo de Meta</th>
+                                <th scope="col">Período</th>
+                                <th scope="col" style="min-width: 200px;">Progresso</th>
+                                <th scope="col" class="col-num">Atingido (R$)</th>
+                                <th scope="col" class="col-num">Valor Meta (R$)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for meta in meta_data_list %}
+                            <tr>
+                                <td><strong>{{ meta.meta_titulo }}</strong></td>
+                                
+                                <td>{{ meta.meta_periodo }}</td>
+                                
+                                <td>
+                                    <div class="progress" style="height: 20px;" 
+                                         aria-label="Progresso da meta"
+                                         aria-valuenow="{{ meta.meta_percentual }}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        
+                                        <div class="progress-bar bg-success text-dark"
+                                             role="progressbar" 
+                                             style="width: {{ meta.meta_percentual }}%;">
+                                             
+                                            {% if meta.meta_percentual > 0 %}
+                                                {{ meta.meta_percentual }}%
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                
+                                <td class="col-num">
+                                    <strong class="text-success">
+                                        R$ {{ meta.meta_progresso|intcomma }}
+                                    </strong>
+                                </td>
+                                
+                                <td class="col-num">
+                                    <span class="text-muted">
+                                        R$ {{ meta.meta_valor|intcomma }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 <div class="row">
-    <!-- Gráfico 1: Vendas ao Longo do Tempo (Linha) -->
     <div class="col-lg-12 mb-4">
         <div class="card shadow-sm">
             <div class="card-body">
                 <h5 class="card-title">Vendas (R$) ao Longo do Tempo</h5>
-                <!-- 
-                  CORREÇÃO: 
-                  Usamos uma altura fixa em 'px' em vez de 'vh'
-                -->
                 <div style="position: relative; height:350px;">
                     <canvas id="vendasPorMesChart"></canvas>
                 </div>
@@ -165,13 +211,11 @@
         </div>
     </div>
     
-    <!-- Gráfico 2: Comparação por Vendedor (Barras) -->
     {% if perms.is_admin or perms.is_gestor or perms.is_financeiro or perms.is_advogado %}
     <div class="col-lg-6 mb-4">
         <div class="card shadow-sm">
             <div class="card-body">
                 <h5 class="card-title">Vendas (R$) por Vendedor</h5>
-                <!-- CORREÇÃO: Altura fixa em 'px' -->
                 <div style="position: relative; height:350px;">
                     <canvas id="vendasPorVendedorChart"></canvas>
                 </div>
@@ -180,12 +224,10 @@
     </div>
     {% endif %}
 
-    <!-- Gráfico 3: Vendas por Produto (Pizza) -->
     <div class="col-lg-6 mb-4">
         <div class="card shadow-sm">
             <div class="card-body">
                 <h5 class="card-title">Vendas (R$) por Produto</h5>
-                <!-- CORREÇÃO: Altura fixa em 'px' -->
                 <div style="position: relative; height:350px;">
                     <canvas id="vendasPorProdutoChart"></canvas>
                 </div>
@@ -193,16 +235,11 @@
         </div>
     </div>
 </div>
-<!-- === FIM GRÁFICOS === -->
-
 {% endblock %}
 
 
-<!-- === SCRIPT DO CHART.JS === -->
 {% block scripts %}
-<!-- 1. Carrega a biblioteca Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<!-- 2. Carrega o script do Acordeão (para 'Mostrar Filtros') -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const accordionContent = document.getElementById('collapseFiltros');
@@ -222,7 +259,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- 3. Script para desenhar os gráficos -->
 <script>
     // Passa os dados JSON do Django (views.py) para o JavaScript
     const vendasPorVendedorData = {{ vendas_por_vendedor_json|safe }};

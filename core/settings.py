@@ -82,3 +82,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # --- NOVA LINHA (Login) ---
 # Diz ao Django qual é a nossa página de login personalizada
 LOGIN_URL = 'login'
+
+# O diretório para onde o 'collectstatic' irá copiar todos os ficheiros.
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')

@@ -1,36 +1,61 @@
+# Em: vendas/views.py (Atualizado)
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages 
-from .models import (
-    Venda, Cliente, Produto, FormaPagamento, AnexoVenda, User, 
-    RegraComissaoVendedor, LotePagamentoComissao, TransacaoPagamentoComissao,
-    MetaVenda # <-- Importa o novo modelo
-)
-from .forms import (
-    VendaForm, ClienteForm, AnexoForm,
-    VendaStatusAdminForm, VendaStatusVendedorForm, 
-    VendaStatusFinanceiroForm, VendaStatusAdvogadoForm, 
-    VendaEditForm, ClienteEditForm,
-    TransacaoPagamentoForm, AnexoLoteForm, MetaVendaForm
-)
 from django.db import transaction 
 from django.http import JsonResponse, HttpResponseForbidden, HttpResponse
-from django.db.models import Q, Sum, Avg, Count # <-- Q e Sum são necessários para Metas
+from django.db.models import Q, Sum, Avg, Count
 from django.db.models.functions import TruncMonth
-import json, csv, openpyxl
-from datetime import datetime, timedelta
-from decimal import Decimal
+from django.utils import timezone
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.forms import AuthenticationForm
-from django.utils import timezone # <-- Importado para Metas
-from functools import wraps
+from django.contrib.auth.models import User
+import json, csv, openpyxl
 from openpyxl.utils import get_column_letter
+from datetime import datetime, timedelta
+from decimal import Decimal
+from functools import wraps
+
+# --- (ATUALIZADO) Imports dos Modelos ---
+from .models import Venda, AnexoVenda
+from common.models import Cliente, Produto
+from comissoes.models import (
+    RegraComissaoVendedor, MetaVenda
+)
+
+# --- (ATUALIZADO) Imports dos Forms ---
+from .forms import (
+    VendaForm, AnexoForm,
+    VendaStatusAdminForm, VendaStatusVendedorForm, 
+    VendaStatusFinanceiroForm, VendaStatusAdvogadoForm, 
+    VendaEditForm
+)
+from common.forms import ClienteForm, ClienteEditForm
+# (Forms de comissões e metas foram removidos)
+
 
 # ---
 # SEÇÃO 1: FUNÇÕES AUXILIARES (LÓGICA INTERNA)
 # ---
-# --- NOVO DECORADOR DE PERMISSÃO ---
+
+# (Estas funções helper permanecem aqui, pois são a "base" da lógica de negócio)
+
+def _get_user_permissions(user):
+    """ Verifica os grupos do utilizador e retorna um dicionário de flags. """
+    return {
+        'is_admin': user.is_superuser,
+        'is_gestor': user.groups.filter(name='Gestor').exists(),
+        'is_financeiro': user.groups.filter(name='Financeiro').exists(),
+        'is_advogado': user.groups.filter(name='Advogado').exists(),
+        'is_vendedor': user.groups.filter(name='Vendedor').exists(),
+    }
+
 def gestor_ou_admin_required(view_func):
+    """ Decorator para as views de Gestão de Metas (movido para comissoes.views) """
+    # (Este decorator foi movido para 'comissoes/views.py')
+    # (Pode ser apagado daqui se não for mais usado em 'vendas')
+    # *Vou deixá-lo aqui por segurança, caso o movamos de volta*
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
         perms = _get_user_permissions(request.user)
@@ -40,45 +65,29 @@ def gestor_ou_admin_required(view_func):
         return view_func(request, *args, **kwargs)
     return _wrapped_view
 
-def _get_user_permissions(user):
-    """
-    Verifica os grupos do utilizador e retorna um dicionário de flags.
-    """
-    return {
-        'is_admin': user.is_superuser,
-        'is_gestor': user.groups.filter(name='Gestor').exists(),
-        'is_financeiro': user.groups.filter(name='Financeiro').exists(),
-        'is_advogado': user.groups.filter(name='Advogado').exists(),
-        'is_vendedor': user.groups.filter(name='Vendedor').exists(),
-    }
-
 def _calcular_e_salvar_comissao(venda):
     """
-    Executa a cascata de lógica de cálculo de comissão (Regras 1, 2, 3)
-    e salva o resultado na venda.
+    Executa a cascata de lógica de cálculo de comissão.
+    (Agora importa 'RegraComissaoVendedor' de 'comissoes.models')
     """
-    
-    # Regra 1: Comissão Personalizada (Req 3)
     if venda.comissao_personalizada_valor is not None:
         venda.comissao_calculada_final = venda.comissao_personalizada_valor
         venda.save()
         return
 
-    # Regra 2: Exceção por Vendedor (Req 2)
     regra = RegraComissaoVendedor.objects.filter(vendedor=venda.vendedor, produto=venda.produto).first()
     if regra:
-        if regra.tipo_comissao == 'F': # Fixo
+        if regra.tipo_comissao == 'F':
             venda.comissao_calculada_final = regra.valor_comissao
-        else: # Percentual
+        else:
             venda.comissao_calculada_final = venda.honorarios * (regra.valor_comissao / Decimal(100))
         venda.save()
         return
 
-    # Regra 3: Padrão do Produto (Req 1, 7)
     produto = venda.produto
-    if produto.tipo_comissao == 'F': # Fixo
+    if produto.tipo_comissao == 'F':
         venda.comissao_calculada_final = produto.valor_comissao
-    else: # Percentual
+    else:
         venda.comissao_calculada_final = venda.honorarios * (produto.valor_comissao / Decimal(100))
     venda.save()
     return
@@ -87,6 +96,7 @@ def _get_vendas_filtradas(request):
     """
     Função auxiliar que lê os filtros do request (GET) e retorna
     o queryset de Vendas já filtrado e com as permissões corretas.
+    (Sem alterações de lógica, apenas de imports)
     """
     perms = _get_user_permissions(request.user)
     
@@ -99,13 +109,11 @@ def _get_vendas_filtradas(request):
     query_status_pagamento = request.GET.get('status_pagamento', '')
     query_status_contrato = request.GET.get('status_contrato', '')
 
-    # Query Base
     if perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'] or perms['is_advogado']:
         vendas = Venda.objects.all()
     else: 
         vendas = Venda.objects.filter(vendedor=request.user)
 
-    # Aplicar filtros
     if query_cliente:
         vendas = vendas.filter(cliente__nome_completo__icontains=query_cliente)
     if (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'] or perms['is_advogado']) and query_vendedor:
@@ -114,11 +122,10 @@ def _get_vendas_filtradas(request):
         vendas = vendas.filter(data_venda__gte=query_data_inicio)
     if query_data_fim:
         try:
-            # CORREÇÃO: Adiciona 1 dia ao data_fim para incluir o dia inteiro
             data_fim_plus_one = datetime.strptime(query_data_fim, '%Y-%m-%d').date() + timedelta(days=1)
             vendas = vendas.filter(data_venda__lt=data_fim_plus_one)
         except (ValueError, TypeError): 
-            pass # Ignora filtro de data fim inválido
+            pass
     if query_produto:
         vendas = vendas.filter(produto_id=query_produto)
     if query_status_venda:
@@ -128,7 +135,6 @@ def _get_vendas_filtradas(request):
     if query_status_contrato:
         vendas = vendas.filter(status_contrato=query_status_contrato)
         
-    # Otimiza a query
     return vendas.select_related('cliente', 'produto', 'vendedor').order_by('-data_venda')
 
 # ---
@@ -157,7 +163,7 @@ def logout_view(request):
     return redirect('login') 
 
 # ---
-# SEÇÃO 3: VIEWS DAS ABAS PRINCIPAIS
+# SEÇÃO 3: VIEWS DAS ABAS PRINCIPAIS (Vendas)
 # ---
 
 @login_required
@@ -165,48 +171,44 @@ def dashboard_graficos(request):
     """ Aba 1: Dashboard (Gráficos, KPIs e METAS) """
     perms = _get_user_permissions(request.user)
     
-    # Define datas padrão (últimos 30 dias) se não houver filtro
-    today = datetime.now().date()
-    default_start_str = (today - timedelta(days=30)).strftime('%Y-%m-%d')
-    default_end_str = today.strftime('%Y-%m-%d')
+    # --- CORREÇÃO DE FUSO HORÁRIO (AQUI) ---
+    # Usamos localdate() para obter a data na 'America/Sao_Paulo', 
+    # em vez de .now().date() que usa UTC.
+    today_date = timezone.localdate()
+    # --- FIM DA CORREÇÃO ---
     
-    # Usa o helper para pegar os dados já filtrados (para KPIs e Gráficos)
+    default_start_str = (today_date - timedelta(days=30)).strftime('%Y-%m-%d')
+    default_end_str = today_date.strftime('%Y-%m-%d')
+    
     vendas_filtradas = _get_vendas_filtradas(request)
         
-    # Cálculo de KPIs
     kpis = vendas_filtradas.aggregate(
         total_vendas=Sum('honorarios'),
         ticket_medio=Avg('honorarios'),
         contagem_vendas=Count('id')
     )
-    kpi_variacao_mes_anterior = 0 # (Lógica futura)
-
-    # Dados para Gráficos
+    
+    # Dados para Gráficos (Querysets)
     vendas_por_vendedor = vendas_filtradas.values('vendedor__username').annotate(total=Sum('honorarios')).order_by('-total')
     vendas_por_produto = vendas_filtradas.values('produto__nome').annotate(total=Sum('honorarios')).order_by('-total')
     vendas_por_mes = vendas_filtradas.annotate(mes=TruncMonth('data_venda')).values('mes').annotate(total=Sum('honorarios')).order_by('mes')
                            
-    # Converte Decimals para Floats (para JSON)
     vendas_por_vendedor_payload = [{'vendedor__username': v['vendedor__username'], 'total': float(v['total'] or 0)} for v in vendas_por_vendedor]
     vendas_por_produto_payload = [{'produto__nome': p['produto__nome'], 'total': float(p['total'] or 0)} for p in vendas_por_produto]
     labels_linha = [v['mes'].strftime('%b/%Y') for v in vendas_por_mes]
     data_linha = [float(v['total'] or 0) for v in vendas_por_mes]
     
     # --- LÓGICA DE METAS ---
-    today_date = timezone.now().date()
-    
-    # 1. Encontra metas ativas
     grupos_do_utilizador = request.user.groups.all()
     
     if perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'] or perms['is_advogado']:
-        # CORREÇÃO: Admin/Gestor DEVEM ver TODAS as metas (Geral, Equipa e Individuais)
+        # Admin/Gestor vê TODAS as metas ativas
         metas_ativas_hoje = MetaVenda.objects.filter(
             data_inicio__lte=today_date,
             data_fim__gte=today_date
-        ).select_related('vendedor', 'grupo').order_by('grupo', 'vendedor') # Ordena para a tabela
-        
+        ).select_related('vendedor', 'grupo').order_by('grupo', 'vendedor')
     else:
-        # Vendedor vê (Suas Individuais) OU (Gerais) OU (Das suas Equipas)
+        # Vendedor vê as suas + Gerais + Equipas
         filtro_metas_visiveis = Q(vendedor=request.user) | Q(vendedor__isnull=True, grupo__isnull=True) | Q(grupo__in=grupos_do_utilizador)
         metas_ativas_hoje = MetaVenda.objects.filter(
             filtro_metas_visiveis,
@@ -214,27 +216,21 @@ def dashboard_graficos(request):
             data_fim__gte=today_date
         ).select_related('vendedor', 'grupo').order_by('grupo', 'vendedor')
 
-    # 2. Prepara os dados de progresso
+    # 2. Prepara os dados de progresso (O resto da lógica permanece 100% igual)
     meta_data_list = []
     
     for meta in metas_ativas_hoje:
-        
-        # --- Lógica de Filtro de Vendas (O "motor" da meta) ---
         if meta.vendedor:
             filtro_vendas_meta = Q(vendedor=meta.vendedor)
             vendedor_nome = meta.vendedor.get_full_name() or meta.vendedor.username
             titulo = f"Meta Individual ({vendedor_nome})"
-        
         elif meta.grupo:
             filtro_vendas_meta = Q(vendedor__groups=meta.grupo)
-            titulo = f"Equipa ({meta.grupo.name})"
-        
+            titulo = f"Meta Equipa ({meta.grupo.name})"
         else:
             filtro_vendas_meta = Q() 
             titulo = "Meta Geral da Empresa"
-        # --- Fim da Lógica de Filtro ---
-
-        # 3. Busca o progresso
+        
         try:
             data_fim_para_query = meta.data_fim + timedelta(days=1)
         except TypeError:
@@ -249,7 +245,6 @@ def dashboard_graficos(request):
 
         percentual = int((progresso / meta.valor_meta) * 100) if meta.valor_meta > 0 else 0
 
-        # Prepara o contexto para a tabela
         meta_data_list.append({
             'meta_titulo': titulo,
             'meta_periodo': f"{meta.data_inicio.strftime('%d/%m')} - {meta.data_fim.strftime('%d/%m')}",
@@ -259,20 +254,20 @@ def dashboard_graficos(request):
         })
     # --- FIM LÓGICA DE METAS ---
     
-    # Dados para os Filtros
     todos_vendedores = User.objects.filter(is_superuser=False, is_active=True).order_by('username')
-    todos_produtos = Produto.objects.all().order_by('nome')
+    todos_produtos = Produto.objects.all().order_by('nome') 
 
     context = {
         'perms': perms,
         'kpi_total_vendas': kpis.get('total_vendas') or 0,
         'kpi_ticket_medio': kpis.get('ticket_medio') or 0,
         'kpi_contagem_vendas': kpis.get('contagem_vendas') or 0,
-        'kpi_variacao_mes_anterior': kpi_variacao_mes_anterior,
+        
         'vendas_por_vendedor_json': json.dumps(vendas_por_vendedor_payload),
         'vendas_por_produto_json': json.dumps(vendas_por_produto_payload),
         'vendas_por_mes_labels_json': json.dumps(labels_linha),
         'vendas_por_mes_data_json': json.dumps(data_linha),
+        
         'todos_vendedores': todos_vendedores,
         'todos_produtos': todos_produtos,
         'status_venda_choices': Venda.STATUS_VENDA_CHOICES,
@@ -280,19 +275,18 @@ def dashboard_graficos(request):
         'status_contrato_choices': Venda.STATUS_CONTRATO_CHOICES,
         'query_data_inicio': request.GET.get('data_inicio', default_start_str), 
         'query_data_fim': request.GET.get('data_fim', default_end_str),
-        'meta_data_list': meta_data_list, # <-- Lista de Metas Ativas
+        'meta_data_list': meta_data_list,
     }
     return render(request, 'dashboard.html', context)
 
 @login_required
 def lista_vendas(request):
-    """ Aba 2: Lista de Vendas (com filtros e exportação) """
+    """ Aba 2: Lista de Vendas """
     perms = _get_user_permissions(request.user)
     vendas_filtradas = _get_vendas_filtradas(request)
     
-    # Dados para os Filtros
     todos_vendedores = User.objects.filter(is_superuser=False, is_active=True).order_by('username')
-    todos_produtos = Produto.objects.all().order_by('nome')
+    todos_produtos = Produto.objects.all().order_by('nome') # (Importa Produto de 'common.models')
     context = {
         'vendas': vendas_filtradas, 
         'perms': perms,
@@ -307,8 +301,7 @@ def lista_vendas(request):
 @login_required
 @transaction.atomic 
 def nova_venda(request):
-    """ Aba 3: Formulário de Nova Venda """
-    # (Lógica de permissão já está no template 'base.html')
+    """ Aba 3: Formulário de Nova Venda (Usa ClienteForm de 'common.forms') """
     if request.method == 'POST':
         venda_form = VendaForm(request.POST)
         anexo_form = AnexoForm(request.POST, request.FILES)
@@ -340,7 +333,7 @@ def nova_venda(request):
     
     else: # GET
         venda_form = VendaForm()
-        cliente_form = ClienteForm()
+        cliente_form = ClienteForm() # (Importa ClienteForm de 'common.forms')
         anexo_form = AnexoForm()
         anexo_form.fields['arquivo'].required = False
         anexo_form.fields['arquivo'].label = "Anexar Comprovante(s) (Opcional)"
@@ -355,17 +348,15 @@ def nova_venda(request):
 @login_required
 @transaction.atomic
 def detalhe_venda(request, venda_id):
-    """ Página de Detalhes da Venda (Visualização e Edição por permissão) """
+    """ Página de Detalhes da Venda (Usa ClienteEditForm de 'common.forms') """
     
     perms = _get_user_permissions(request.user)
     
-    # 1. Permissão de Acesso
     if perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'] or perms['is_advogado']:
         venda = get_object_or_404(Venda, id=venda_id)
     else: 
         venda = get_object_or_404(Venda, id=venda_id, vendedor=request.user)
     
-    # 2. Definição das Flags de Bloqueio
     is_locked = (venda.status_contrato != 'nao_gerado')
     pagamento_aprovado = (venda.status_pagamento == 'aprovado')
     can_edit_data = (perms['is_admin'] or perms['is_gestor'] or (perms['is_vendedor'] and not is_locked))
@@ -373,12 +364,11 @@ def detalhe_venda(request, venda_id):
     can_delete_contrato = (perms['is_admin'] or perms['is_gestor'] or perms['is_advogado'])
     can_delete_nf = (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'])
 
-    # 3. Lógica de POST (Submissão dos formulários da página)
     if request.method == 'POST':
         acao = request.POST.get('acao')
         
-        # Ação: Upload de Anexo
         if acao in ['add_comprovante', 'add_contrato', 'add_nota_fiscal']:
+            # ... (Lógica de upload de AnexoVenda permanece a mesma) ...
             tipo_anexo = acao.split('_')[-1]
             ficheiros_enviados = request.FILES.getlist('arquivos')
             pode_enviar = (perms['is_admin'] or perms['is_gestor'] or
@@ -397,7 +387,6 @@ def detalhe_venda(request, venda_id):
             else: messages.error(request, "Você não tem permissão para enviar este tipo de anexo.")
             return redirect('detalhe_venda', venda_id=venda.id)
 
-        # Ação: Atualizar Status
         elif acao == 'update_status':
             status_pagamento_antigo = venda.status_pagamento 
             form = None
@@ -408,9 +397,8 @@ def detalhe_venda(request, venda_id):
             
             if form and form.is_valid():
                 venda_atualizada = form.save()
-                # GATILHO DE COMISSÃO
                 if venda_atualizada.status_pagamento == 'aprovado' and status_pagamento_antigo != 'aprovado':
-                    _calcular_e_salvar_comissao(venda_atualizada)
+                    _calcular_e_salvar_comissao(venda_atualizada) # (Função helper local)
                     messages.success(request, "Status atualizado e comissão calculada!")
                 else:
                     messages.success(request, "Status da venda atualizado.")
@@ -418,19 +406,17 @@ def detalhe_venda(request, venda_id):
             else: messages.error(request, "Você não tem permissão para esta ação.")
             return redirect('detalhe_venda', venda_id=venda.id)
 
-        # Ação: Atualizar Venda ou Cliente
         elif acao == 'update_venda' or acao == 'update_cliente':
             if can_edit_data:
                 if acao == 'update_venda': 
                     form = VendaEditForm(request.POST, instance=venda)
                     msg = "Dados da venda atualizados."
                 else: 
-                    form = ClienteEditForm(request.POST, instance=venda.cliente)
+                    form = ClienteEditForm(request.POST, instance=venda.cliente) # (Usa ClienteEditForm de 'common.forms')
                     msg = "Dados do cliente atualizados."
                 
                 if form.is_valid():
                     form.save()
-                    # RECÁLCULO DE COMISSÃO
                     if venda.status_pagamento == 'aprovado':
                         _calcular_e_salvar_comissao(venda)
                         msg += " Comissão recalculada."
@@ -439,13 +425,13 @@ def detalhe_venda(request, venda_id):
             else: messages.error(request, "Você não tem permissão para editar estes dados.")
             return redirect('detalhe_venda', venda_id=venda.id)
 
-    # 4. Lógica GET (Preenche os forms para mostrar na página)
     if perms['is_admin'] or perms['is_gestor']: status_form = VendaStatusAdminForm(instance=venda)
     elif perms['is_financeiro']: status_form = VendaStatusFinanceiroForm(instance=venda)
     elif perms['is_advogado']: status_form = VendaStatusAdvogadoForm(instance=venda)
     else: status_form = VendaStatusVendedorForm(instance=venda)
+    
     venda_form = VendaEditForm(instance=venda)
-    cliente_form = ClienteEditForm(instance=venda.cliente)
+    cliente_form = ClienteEditForm(instance=venda.cliente) # (Usa ClienteEditForm de 'common.forms')
 
     context = {
         'venda': venda, 'anexo_form': AnexoForm(), 'status_form': status_form,
@@ -459,309 +445,26 @@ def detalhe_venda(request, venda_id):
     return render(request, 'vendas/detalhe_venda.html', context)
 
 # ---
-# SEÇÃO 4: VIEWS DO MÓDULO DE COMISSÕES (ATUALIZADO)
+# SEÇÃO 4: VIEWS DE COMISSÕES (MOVIDAS PARA 'comissoes/views.py')
 # ---
-
-@login_required
-def comissoes_dashboard_graficos(request):
-    """ Novo Dashboard Gráfico de Comissões """
-    perms = _get_user_permissions(request.user)
-    # Vendedores TAMBÉM podem ver seu próprio dashboard de comissões
-    if not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'] or perms['is_vendedor']):
-        messages.error(request, "Você não tem permissão para aceder a esta página.")
-        return redirect('dashboard')
-
-    # 1. Reusa a lógica de filtros base (já lida com permissões de Vendedor vs Outros)
-    vendas_filtradas = _get_vendas_filtradas(request)
-
-    # 2. Filtro ADICIONAL: Apenas vendas com pagamento APROVADO geram comissão real
-    comissoes_filtradas = vendas_filtradas.filter(status_pagamento='aprovado')
-
-    # 3. Cálculo de KPIs de Comissão
-    kpis = comissoes_filtradas.aggregate(
-        total_comissoes=Sum('comissao_calculada_final'),
-        ticket_medio_comissao=Avg('comissao_calculada_final'),
-        contagem_vendas_comissionadas=Count('id')
-    )
-
-    # 4. Dados para Gráficos (Adaptado para usar 'comissao_calculada_final')
-    # Por Vendedor
-    comissoes_por_vendedor = comissoes_filtradas.values('vendedor__username').annotate(total=Sum('comissao_calculada_final')).order_by('-total')
-    comissoes_por_vendedor_payload = [{'vendedor__username': c['vendedor__username'], 'total': float(c['total'] or 0)} for c in comissoes_por_vendedor]
-
-    # Por Produto
-    comissoes_por_produto = comissoes_filtradas.values('produto__nome').annotate(total=Sum('comissao_calculada_final')).order_by('-total')
-    comissoes_por_produto_payload = [{'produto__nome': p['produto__nome'], 'total': float(p['total'] or 0)} for p in comissoes_por_produto]
-
-    # Por Mês (Linha do Tempo)
-    comissoes_por_mes = comissoes_filtradas.annotate(mes=TruncMonth('data_venda')).values('mes').annotate(total=Sum('comissao_calculada_final')).order_by('mes')
-    labels_linha = [c['mes'].strftime('%b/%Y') for c in comissoes_por_mes]
-    data_linha = [float(c['total'] or 0) for c in comissoes_por_mes]
-
-    # 5. Contexto para Filtros (Mesmos do Dashboard de Vendas)
-    todos_vendedores = User.objects.filter(is_superuser=False, is_active=True).order_by('username')
-    todos_produtos = Produto.objects.all().order_by('nome')
-
-    # Datas padrão para os filtros na tela
-    today_dt = datetime.now().date()
-    default_start_str = (today_dt - timedelta(days=30)).strftime('%Y-%m-%d')
-    default_end_str = today_dt.strftime('%Y-%m-%d')
-
-    context = {
-        'perms': perms,
-        # KPIs
-        'kpi_total_comissoes': kpis.get('total_comissoes') or 0,
-        'kpi_media_comissao': kpis.get('ticket_medio_comissao') or 0,
-        'kpi_contagem_comissoes': kpis.get('contagem_vendas_comissionadas') or 0,
-        # Gráficos JSON
-        'comissoes_por_vendedor_json': json.dumps(comissoes_por_vendedor_payload),
-        'comissoes_por_produto_json': json.dumps(comissoes_por_produto_payload),
-        'comissoes_por_mes_labels_json': json.dumps(labels_linha),
-        'comissoes_por_mes_data_json': json.dumps(data_linha),
-        # Filtros
-        'todos_vendedores': todos_vendedores,
-        'todos_produtos': todos_produtos,
-        'query_data_inicio': request.GET.get('data_inicio', default_start_str),
-        'query_data_fim': request.GET.get('data_fim', default_end_str),
-    }
-    return render(request, 'comissoes/dashboard_graficos.html', context)
-
-
-@login_required
-def comissoes_historico_lotes(request):
-    """ Histórico de Lotes com Filtros """
-    perms = _get_user_permissions(request.user)
-    if not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro'] or perms['is_vendedor']):
-         messages.error(request, "Você não tem permissão para aceder a esta página.")
-         return redirect('dashboard')
-
-    # 1. USA A NOVA FUNÇÃO HELPER
-    lotes_pagos = _get_lotes_filtrados(request)
-
-    # 2. Contexto para os Dropdowns (o resto já vem do GET)
-    # (Filtra vendedores que de facto têm lotes, para um filtro mais limpo)
-    vendedores_com_lotes = User.objects.filter(
-        id__in=LotePagamentoComissao.objects.values_list('vendedor_id', flat=True).distinct()
-    ).order_by('username')
-
-    context = {
-        'lotes_pagos': lotes_pagos,
-        'perms': perms,
-        'todos_vendedores': vendedores_com_lotes,
-        'status_lote_choices': LotePagamentoComissao.STATUS_CHOICES,
-    }
-    return render(request, 'comissoes/historico_lotes.html', context)
-
-
-@login_required
-@transaction.atomic
-def comissoes_fechamento(request):
-    """ Página 'Pagar Comissões' (Fecho Manual por Período/Vendedor) """
-    perms = _get_user_permissions(request.user)
-    if not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro']):
-        messages.error(request, "Você não tem permissão para aceder a esta página.")
-        return redirect('dashboard')
-    
-    vendas_para_pagar = None
-    resumo_por_vendedor = None
-    total_geral_comissao = 0
-    
-    # Busca vendedores que *têm* comissões pendentes (para o filtro)
-    vendedores_com_pendencias = User.objects.filter(
-        is_superuser=False, is_active=True, 
-        vendas__status_pagamento='aprovado', 
-        vendas__lote_pagamento__isnull=True
-    ).distinct().order_by('username')
-
-    if request.method == 'GET' and 'data_inicio' in request.GET and 'data_fim' in request.GET:
-        data_inicio = request.GET.get('data_inicio')
-        data_fim = request.GET.get('data_fim')
-        query_vendedor = request.GET.get('vendedor', '')
-        
-        if data_inicio and data_fim: 
-            try:
-                data_fim_dt = datetime.strptime(data_fim, '%Y-%m-%d').date() + timedelta(days=1)
-            except (ValueError, TypeError):
-                data_fim_dt = datetime.now().date() + timedelta(days=1)
-
-            vendas_para_pagar = Venda.objects.filter(
-                status_pagamento='aprovado',
-                lote_pagamento__isnull=True,
-                data_venda__gte=data_inicio,
-                data_venda__lt=data_fim_dt 
-            )
-            
-            if query_vendedor:
-                vendas_para_pagar = vendas_para_pagar.filter(vendedor_id=query_vendedor)
-            
-            resumo_por_vendedor = vendas_para_pagar.values('vendedor__username') \
-                                              .annotate(total_comissao=Sum('comissao_calculada_final'),
-                                                        contagem=Count('id')) \
-                                              .order_by('vendedor__username')
-            total_geral_comissao = resumo_por_vendedor.aggregate(total_geral=Sum('total_comissao'))['total_geral'] or 0
-
-    elif request.method == 'POST':
-        data_inicio = request.POST.get('data_inicio')
-        data_fim = request.POST.get('data_fim')
-        query_vendedor = request.POST.get('vendedor', '')
-
-        try:
-            data_fim_dt = datetime.strptime(data_fim, '%Y-%m-%d').date() + timedelta(days=1)
-        except (ValueError, TypeError):
-            data_fim_dt = datetime.now().date() + timedelta(days=1)
-
-        vendas_para_pagar = Venda.objects.filter(
-            status_pagamento='aprovado',
-            lote_pagamento__isnull=True,
-            data_venda__gte=data_inicio,
-            data_venda__lt=data_fim_dt
-        )
-        
-        # Define quais vendedores processar
-        vendedores_a_processar_ids = []
-        if query_vendedor:
-            # Cenário A: Pagar um vendedor específico
-            vendedores_a_processar_ids = [query_vendedor]
-            vendas_para_pagar = vendas_para_pagar.filter(vendedor_id=query_vendedor)
-        else:
-            # Cenário B: Pagar todos os vendedores (individuais)
-            vendedores_a_processar_ids = vendas_para_pagar.values_list('vendedor_id', flat=True).distinct()
-
-        if not vendas_para_pagar.exists():
-            messages.error(request, "Nenhuma venda encontrada para fechar no período selecionado.")
-            return redirect('comissoes_fechamento')
-
-        # --- LÓGICA DE MÚLTIPLOS LOTES (Req 1) ---
-        lotes_criados_count = 0
-        for vendor_id in vendedores_a_processar_ids:
-            vendas_do_vendedor = vendas_para_pagar.filter(vendedor_id=vendor_id)
-            total_do_vendedor = vendas_do_vendedor.aggregate(total=Sum('comissao_calculada_final'))['total'] or 0
-            
-            if total_do_vendedor > 0:
-                novo_lote = LotePagamentoComissao.objects.create(
-                    vendedor_id=vendor_id, 
-                    periodo_inicio=data_inicio,
-                    periodo_fim=data_fim,
-                    responsavel_fechamento=request.user,
-                    status='pendente',
-                    total_comissoes=total_do_vendedor
-                )
-                vendas_do_vendedor.update(lote_pagamento=novo_lote)
-                lotes_criados_count += 1
-        
-        if lotes_criados_count > 0:
-            messages.success(request, f"{lotes_criados_count} lote(s) de pagamento criado(s) com sucesso.")
-            return redirect('comissoes_historico') # <-- ATUALIZADO: Redireciona para o novo histórico
-        else:
-            messages.error(request, "Nenhuma comissão a pagar encontrada para os filtros selecionados.")
-            return redirect('comissoes_fechamento')
-
-    context = {
-        'vendas_para_pagar': vendas_para_pagar,
-        'resumo_por_vendedor': resumo_por_vendedor,
-        'total_geral_comissao': total_geral_comissao,
-        'todos_vendedores': vendedores_com_pendencias, # Passa os vendedores para o filtro
-    }
-    return render(request, 'comissoes/comissoes_fechamento.html', context)
-
-@login_required
-@transaction.atomic
-def comissoes_lote_detalhe(request, lote_id):
-    """ Página de Detalhe do Lote (ATUALIZADA) """
-    perms = _get_user_permissions(request.user)
-    lote = get_object_or_404(LotePagamentoComissao, id=lote_id)
-
-    # Verificação de Permissão: Admin/Gestor/Financeiro veem tudo. Vendedor só vê O SEU.
-    if perms['is_vendedor'] and not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro']):
-        if lote.vendedor != request.user:
-             messages.error(request, "Você não tem permissão para visualizar este lote.")
-             return redirect('comissoes_historico') # <-- Redireciona para o histórico
-             
-    # Prepara os dois formulários
-    transacao_form = TransacaoPagamentoForm(lote=lote)
-    anexo_lote_form = AnexoLoteForm() # Novo form
-
-    if request.method == 'POST':
-        # Vendedor não pode submeter pagamentos ou NFs
-        if perms['is_vendedor'] and not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro']):
-            messages.error(request, "Você não tem permissão para esta ação.")
-            return redirect('comissoes_lote_detalhe', lote_id=lote.id)
-
-        acao = request.POST.get('acao')
-
-        # AÇÃO 1: Adicionar um Pagamento (Transação)
-        if acao == 'add_transacao':
-            transacao_form = TransacaoPagamentoForm(request.POST, request.FILES, lote=lote)
-            if transacao_form.is_valid():
-                transacao = transacao_form.save(commit=False)
-                transacao.lote = lote
-                transacao.responsavel_pagamento = request.user
-                if 'anexo_comprovativo_pagamento' in request.FILES:
-                    transacao.descricao = request.FILES['anexo_comprovativo_pagamento'].name
-                transacao.save() # O gatilho .save() no modelo irá atualizar o Lote
-                messages.success(request, "Pagamento registado com sucesso.")
-                return redirect('comissoes_lote_detalhe', lote_id=lote.id)
-            # Se inválido, a página recarrega com erros no 'transacao_form'
-        
-        # AÇÃO 2: Adicionar uma Nota Fiscal (Anexo do Lote)
-        elif acao == 'add_anexo_nf':
-            anexo_lote_form = AnexoLoteForm(request.POST, request.FILES)
-            if anexo_lote_form.is_valid():
-                anexo = anexo_lote_form.save(commit=False)
-                anexo.lote = lote
-                if 'anexo_nf_vendedor' in request.FILES:
-                    anexo.descricao = request.FILES['anexo_nf_vendedor'].name
-                anexo.save()
-                messages.success(request, "Nota Fiscal do Vendedor anexada com sucesso.")
-                return redirect('comissoes_lote_detalhe', lote_id=lote.id)
-            # Se inválido, recarrega com erros no 'anexo_lote_form'
-
-    # Lógica GET
-    vendas_no_lote = lote.vendas.all().order_by('data_venda')
-    transacoes_do_lote = lote.transacoes_pagamento.all().order_by('data_pagamento')
-    anexos_do_lote = lote.anexos_lote.all().order_by('data_upload') # NFs
-
-    context = {
-        'lote': lote,
-        'vendas_no_lote': vendas_no_lote,
-        'transacoes_do_lote': transacoes_do_lote,
-        'anexos_do_lote': anexos_do_lote, # Passa as NFs
-        'transacao_form': transacao_form, 
-        'anexo_lote_form': anexo_lote_form, # Passa o novo form
-        'perms': perms, # <-- Passa as permissões para o template
-    }
-    return render(request, 'comissoes/comissoes_lote_detalhe.html', context)
-
+# (As views 'comissoes_dashboard', 'comissoes_historico_lotes', 
+# 'comissoes_fechamento', 'comissoes_lote_detalhe' foram MOVIDAS)
 
 # ---
-# SEÇÃO 5: APIs INTERNAS (JSON)
+# SEÇÃO 5: APIs INTERNAS (JSON) (MOVIDAS PARA 'common/views.py')
 # ---
+# (As views 'get_produto_data' e 'check_cliente' foram MOVIDAS)
 
-@login_required
-def get_produto_data(request, produto_id):
-    try:
-        produto = Produto.objects.get(id=produto_id)
-        data = { 'honorarios': produto.valor, 'valor_entrada': produto.valor_entrada_sugerido,
-                 'num_parcelas': produto.num_parcelas_sugerido, 'valor_parcela': produto.valor_parcela_sugerido,
-                 'valor_exito': produto.valor_exito_sugerido, 'valor_aporte': produto.valor_aporte_sugerido, }
-        return JsonResponse(data)
-    except Produto.DoesNotExist: return JsonResponse({'error': 'Produto não encontrado'}, status=404)
-
-@login_required
-def check_cliente(request):
-    cpf_cnpj = request.GET.get('cpf_cnpj', None)
-    if not cpf_cnpj: return JsonResponse({'error': 'CPF/CNPJ não fornecido'}, status=400)
-    cliente = Cliente.objects.filter(cpf_cnpj=cpf_cnpj).first()
-    if cliente:
-        data = { 'status': 'found', 'nome_completo': cliente.nome_completo, 'email': cliente.email, 'telefone': cliente.telefone, 'cep': cliente.cep, 'endereco': cliente.endereco, 'numero': cliente.numero, 'complemento': cliente.complemento, 'bairro': cliente.bairro, 'cidade': cliente.cidade, 'estado': cliente.estado, 'responsavel_nome': cliente.responsavel_nome, 'responsavel_cpf': cliente.responsavel_cpf, 'responsavel_email': cliente.responsavel_email, }
-        return JsonResponse(data)
-    else: return JsonResponse({'status': 'not_found'})
-
+# (A view 'delete_anexo' permanece aqui, pois está ligada ao AnexoVenda)
 @login_required
 @transaction.atomic
 def delete_anexo(request, anexo_id):
     if request.method != 'POST': return HttpResponseForbidden()
-    anexo = get_object_or_404(AnexoVenda, id=anexo_id); venda = anexo.venda; perms = _get_user_permissions(request.user); pagamento_aprovado = (venda.status_pagamento == 'aprovado'); pode_excluir = False
+    anexo = get_object_or_404(AnexoVenda, id=anexo_id); 
+    venda = anexo.venda; 
+    perms = _get_user_permissions(request.user); 
+    pagamento_aprovado = (venda.status_pagamento == 'aprovado'); 
+    pode_excluir = False
     if perms['is_admin'] or perms['is_gestor']:
         pode_excluir = True
     elif perms['is_financeiro']:
@@ -781,195 +484,105 @@ def delete_anexo(request, anexo_id):
 # ---
 # SEÇÃO 6: VIEWS DE EXPORTAÇÃO (RELATÓRIOS)
 # ---
+# (As views 'export_lotes_csv' e 'export_lotes_xlsx' foram MOVIDAS para 'comissoes/views.py')
 
 @login_required
 def export_vendas_csv(request):
+    """ Exportação de Vendas (Permanece aqui) """
     vendas = _get_vendas_filtradas(request)
-    response = HttpResponse(content_type='text/csv'); response['Content-Disposition'] = 'attachment; filename="relatorio_vendas.csv"'
+    response = HttpResponse(content_type='text/csv'); 
+    response['Content-Disposition'] = 'attachment; filename="relatorio_vendas.csv"'
     writer = csv.writer(response, delimiter=';') 
-    writer.writerow(['ID Venda', 'Data', 'Vendedor', 'Cliente', 'CPF/CNPJ', 'Produto', 'Honorarios Totais', 'Entrada', 'N Parcelas', 'Valor Parcela', 'Exito', 'Aporte', 'Status Venda', 'Status Pagamento', 'Status Contrato'])
-    for venda in vendas: writer.writerow([venda.id, venda.data_venda.strftime('%Y-%m-%d %H:%M'), venda.vendedor.username, venda.cliente.nome_completo, venda.cliente.cpf_cnpj, venda.produto.nome, venda.honorarios, venda.valor_entrada, venda.num_parcelas, venda.valor_parcela, venda.valor_exito, venda.valor_aporte, venda.get_status_venda_display(), venda.get_status_pagamento_display(), venda.get_status_contrato_display()])
+    writer.writerow([
+        'ID Venda', 
+        'Data', 
+        'Vendedor', 
+        'Cliente', 
+        'CPF/CNPJ', 
+        'Produto', 
+        'Honorarios Totais', 
+        'Entrada', 
+        'N Parcelas', 
+        'Valor Parcela', 
+        'Exito', 
+        'Aporte', 
+        'Status Venda', 
+        'Status Pagamento', 
+        'Status Contrato'
+    ])
+    for venda in vendas: 
+        writer.writerow([
+            venda.id, 
+            venda.data_venda.strftime('%Y-%m-%d %H:%M'), 
+            venda.vendedor.username, 
+            venda.cliente.nome_completo, 
+            venda.cliente.cpf_cnpj, 
+            venda.produto.nome, 
+            venda.honorarios, 
+            venda.valor_entrada, 
+            venda.num_parcelas, 
+            venda.valor_parcela, 
+            venda.valor_exito, 
+            venda.valor_aporte, 
+            venda.get_status_venda_display(), 
+            venda.get_status_pagamento_display(), 
+            venda.get_status_contrato_display()
+        ])
     return response
 
 @login_required
 def export_vendas_xlsx(request):
+    """ Exportação de Vendas (Permanece aqui) """
     vendas = _get_vendas_filtradas(request)
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Relatório de Vendas"
-    headers = ['ID Venda', 'Data', 'Vendedor', 'Cliente', 'CPF/CNPJ', 'Produto', 'Honorarios Totais', 'Entrada', 'N Parcelas', 'Valor Parcela', 'Exito', 'Aporte', 'Status Venda', 'Status Pagamento', 'Status Contrato']
+    wb = openpyxl.Workbook(); 
+    ws = wb.active; ws.title = "Relatório de Vendas"
+    headers = [
+        'ID Venda',
+        'Data',
+        'Vendedor',
+        'Cliente',
+        'CPF/CNPJ',
+        'Produto',
+        'Honorarios Totais',
+        'Entrada',
+        'N Parcelas',
+        'Valor Parcela',
+        'Exito',
+        'Aporte',
+        'Status Venda',
+        'Status Pagamento',
+        'Status Contrato'
+    ]
     ws.append(headers)
-    for venda in vendas: ws.append([venda.id, venda.data_venda.replace(tzinfo=None), venda.vendedor.username, venda.cliente.nome_completo, venda.cliente.cpf_cnpj, venda.produto.nome, float(venda.honorarios or 0), float(venda.valor_entrada or 0), venda.num_parcelas, float(venda.valor_parcela or 0), float(venda.valor_exito or 0), float(venda.valor_aporte or 0), venda.get_status_venda_display(), venda.get_status_pagamento_display(), venda.get_status_contrato_display()])
-    # (openpyxl.utils.get_column_letter não está importado, mas esta lógica de exportação é secundária)
-    # Tente importar, se falhar, não quebra a aplicação
+    for venda in vendas: 
+        ws.append([
+            venda.id,
+            venda.data_venda.replace(tzinfo=None),
+            venda.vendedor.username,
+            venda.cliente.nome_completo,
+            venda.cliente.cpf_cnpj,
+            venda.produto.nome,
+            float(venda.honorarios or 0),
+            float(venda.valor_entrada or 0),
+            venda.num_parcelas,
+            float(venda.valor_parcela or 0),
+            float(venda.valor_exito or 0),
+            float(venda.valor_aporte or 0),
+            venda.get_status_venda_display(),
+            venda.get_status_pagamento_display(),
+            venda.get_status_contrato_display()
+        ])
     try:
-        from openpyxl.utils import get_column_letter
         for col_num, header in enumerate(headers, 1): 
             ws.column_dimensions[get_column_letter(col_num)].width = 20
     except ImportError:
         pass 
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); response['Content-Disposition'] = 'attachment; filename="relatorio_vendas.xlsx"'
-    wb.save(response)
-    return response
-
-def _get_lotes_filtrados(request):
-    """
-    Função auxiliar que lê os filtros do request (GET) e retorna
-    o queryset de Lotes já filtrado e com as permissões corretas.
-    """
-    perms = _get_user_permissions(request.user)
-    
-    # 1. Queryset Base
-    if perms['is_vendedor'] and not (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro']):
-        lotes_qs = LotePagamentoComissao.objects.filter(vendedor=request.user)
-    else:
-        lotes_qs = LotePagamentoComissao.objects.all()
-
-    # 2. Captura dos Parâmetros de Filtro
-    query_vendedor = request.GET.get('vendedor', '')
-    query_status = request.GET.get('status', '')
-    query_data_inicio = request.GET.get('data_inicio', '')
-    query_data_fim = request.GET.get('data_fim', '')
-
-    # 3. Aplicação dos Filtros
-    if (perms['is_admin'] or perms['is_gestor'] or perms['is_financeiro']) and query_vendedor:
-        lotes_qs = lotes_qs.filter(vendedor_id=query_vendedor)
-    if query_status:
-        lotes_qs = lotes_qs.filter(status=query_status)
-    if query_data_inicio:
-        lotes_qs = lotes_qs.filter(data_fechamento__gte=query_data_inicio)
-    if query_data_fim:
-        try:
-            data_fim_dt = datetime.strptime(query_data_fim, '%Y-%m-%d').date() + timedelta(days=1)
-            lotes_qs = lotes_qs.filter(data_fechamento__lt=data_fim_dt)
-        except (ValueError, TypeError):
-            pass
-            
-    # 4. Otimiza a query e retorna
-    return lotes_qs.select_related('vendedor', 'responsavel_fechamento').order_by('-data_fechamento')
-
-@login_required
-def export_lotes_csv(request):
-    lotes = _get_lotes_filtrados(request)
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="relatorio_lotes_comissao.csv"'
-    writer = csv.writer(response, delimiter=';')
-    
-    headers = ['Lote ID', 'Data Fechamento', 'Vendedor', 'Responsável (Fechou)', 
-               'Período Início', 'Período Fim', 
-               'Total Devido', 'Total Pago', 'Status']
-    writer.writerow(headers)
-    
-    for lote in lotes:
-        writer.writerow([
-            lote.id, 
-            lote.data_fechamento.strftime('%Y-%m-%d %H:%M'), 
-            lote.vendedor.username, 
-            lote.responsavel_fechamento.username,
-            lote.periodo_inicio,
-            lote.periodo_fim,
-            lote.total_comissoes,
-            lote.total_pago_efetivamente,
-            lote.get_status_display()
-        ])
-    return response
-
-@login_required
-def export_lotes_xlsx(request):
-    lotes = _get_lotes_filtrados(request)
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Lotes de Comissão"
-    
-    headers = ['Lote ID', 'Data Fechamento', 'Vendedor', 'Responsável (Fechou)', 
-               'Período Início', 'Período Fim', 
-               'Total Devido (R$)', 'Total Pago (R$)', 'Status']
-    ws.append(headers)
-    
-    for lote in lotes:
-        ws.append([
-            lote.id, 
-            lote.data_fechamento.replace(tzinfo=None), 
-            lote.vendedor.username, 
-            lote.responsavel_fechamento.username,
-            lote.periodo_inicio,
-            lote.periodo_fim,
-            float(lote.total_comissoes or 0),
-            float(lote.total_pago_efetivamente or 0),
-            lote.get_status_display()
-        ])
-        
-    for col_num, header in enumerate(headers, 1): 
-        ws.column_dimensions[get_column_letter(col_num)].width = 22
-        
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="relatorio_lotes_comissao.xlsx"'
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    response['Content-Disposition'] = 'attachment; filename="relatorio_vendas.xlsx"'
     wb.save(response)
     return response
 
 # ---
-# SEÇÃO 7: VIEWS DE GESTÃO DE METAS (NOVAS)
-# (Adicione esta seção inteira no final do views.py)
+# SEÇÃO 7: VIEWS DE GESTÃO DE METAS (MOVIDAS PARA 'comissoes/views.py')
 # ---
-
-@login_required
-@gestor_ou_admin_required
-def lista_metas(request):
-    """ (R)ead: Lista todas as metas (passadas, presentes, futuras) """
-    metas = MetaVenda.objects.all().select_related('vendedor', 'grupo').order_by('-data_inicio')
-    context = {
-        'metas': metas
-    }
-    return render(request, 'metas/lista_metas.html', context)
-
-@login_required
-@gestor_ou_admin_required
-def criar_meta(request):
-    """ (C)reate: Formulário para criar nova meta """
-    if request.method == 'POST':
-        form = MetaVendaForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Nova meta criada com sucesso.")
-            return redirect('lista_metas')
-    else:
-        form = MetaVendaForm()
-    
-    context = {
-        'form': form,
-        'form_title': 'Criar Nova Meta'
-    }
-    return render(request, 'metas/meta_form.html', context)
-
-@login_required
-@gestor_ou_admin_required
-def editar_meta(request, meta_id):
-    """ (U)pdate: Formulário para editar meta existente """
-    meta = get_object_or_404(MetaVenda, id=meta_id)
-    if request.method == 'POST':
-        form = MetaVendaForm(request.POST, instance=meta)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Meta atualizada com sucesso.")
-            return redirect('lista_metas')
-    else:
-        form = MetaVendaForm(instance=meta)
-    
-    context = {
-        'form': form,
-        'form_title': f"Editar Meta ({meta})"
-    }
-    return render(request, 'metas/meta_form.html', context)
-
-@login_required
-@gestor_ou_admin_required
-def apagar_meta(request, meta_id):
-    """ (D)elete: Confirmação e exclusão de meta """
-    meta = get_object_or_404(MetaVenda, id=meta_id)
-    if request.method == 'POST':
-        meta.delete()
-        messages.success(request, "Meta apagada com sucesso.")
-        return redirect('lista_metas')
-    
-    context = {
-        'meta': meta
-    }
-    return render(request, 'metas/meta_confirm_delete.html', context)
+# (As views 'lista_metas', 'criar_meta', 'editar_meta', 'apagar_meta' foram MOVIDAS)

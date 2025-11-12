@@ -13,7 +13,7 @@ services:
       - "8000:8000"
     # Carrega as variáveis de ambiente do arquivo .env
     env_file:
-      - .env
+      - .env.prod
     # Garante que o serviço 'db' esteja pronto antes do 'web'
     depends_on:
       - db

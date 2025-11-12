@@ -1,19 +1,27 @@
+# Em: core/urls.py (Atualizado)
+
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include # <-- Adicione 'include'
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # Rota da app vendas (inclui dashboard e nova_venda)
+    # --- ROTAS ATUALIZADAS ---
+    
+    # APIs (de 'common')
+    path('', include('common.urls')), 
+    
+    # Rotas de Comissões e Metas (de 'comissoes')
+    path('', include('comissoes.urls')),
+    
+    # Rotas de Vendas (de 'vendas')
     path('', include('vendas.urls')), 
+    
+    # --- FIM ROTAS ATUALIZADAS ---
 ]
 
-# --- Configuração para Mídia (CORREÇÃO) ---
-# Em modo DEBUG (desenvolvimento), dizemos ao Django para servir
-# os arquivos que estão em MEDIA_ROOT (nossa pasta /media/)
+# (A sua configuração de Mídia para DEBUG permanece a mesma)
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-# --- Fim Configuração ---
-

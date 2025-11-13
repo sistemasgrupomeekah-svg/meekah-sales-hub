@@ -23,6 +23,7 @@ COPY . .
 # 7. Corrige e prepara o script de arranque
 #    Executa o dos2unix DEPOIS de o ficheiro ser copiado
 RUN dos2unix /app/entrypoint.sh
+RUN dos2unix /app/manage.py
 RUN chmod +x /app/entrypoint.sh
 
 # 8. Exposição da Porta

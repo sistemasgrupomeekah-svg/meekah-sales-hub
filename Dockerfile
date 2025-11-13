@@ -8,21 +8,54 @@ ENV PYTHONUNBUFFERED 1
 # 3. Diretório de Trabalho
 WORKDIR /app
 
-# 4. Instalação de Dependências
+# 4. Dependências
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 5. Copia o Código
 COPY . .
 
-# 6. Correção do manage.py (Remove caracteres do Windows por segurança)
+# 6. Correção de formatação (Windows -> Linux)
 RUN apt-get update && apt-get install -y dos2unix && \
     dos2unix /app/manage.py && \
     chmod +x /app/manage.py && \
     rm -rf /var/lib/apt/lists/*
 
-# 7. CRIAÇÃO DO SCRIPT PYTHON (Superusuário)
-#    Criado internamente para evitar erros de formatação
+# 7. CRIAÇÃO DO SCRIPT DE CORREÇÃO DE BANCO (O SALVADOR)
+#    Este script verifica se as tabelas faltam e limpa o histórico para forçar a criação.
+RUN printf 'import os\n\
+import django\n\
+from django.db import connection\n\
+from django.db.migrations.recorder import MigrationRecorder\n\
+\n\
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")\n\
+django.setup()\n\
+\n\
+def fix_migrations():\n\
+    print("Verificando integridade do banco de dados...")\n\
+    tables = connection.introspection.table_names()\n\
+    # Mapeamento App -> Tabela Principal\n\
+    apps_check = {\n\
+        "common": "vendas_cliente",\n\
+        "comissoes": "vendas_lotepagamentocomissao",\n\
+        "vendas": "vendas_venda"\n\
+    }\n\
+    \n\
+    recorder = MigrationRecorder(connection)\n\
+    for app, table in apps_check.items():\n\
+        if table not in tables:\n\
+            print(f"ALERTA: Tabela {table} nao existe. Limpando historico de {app} para recriar...")\n\
+            recorder.migration_qs.filter(app=app).delete()\n\
+        else:\n\
+            print(f"Tabela {table} existe. OK.")\n\
+\n\
+if __name__ == "__main__":\n\
+    try:\n\
+        fix_migrations()\n\
+    except Exception as e:\n\
+        print(f"Erro ao verificar banco (pode ser a primeira execucao): {e}")\n' > /app/fix_db.py
+
+# 8. CRIAÇÃO DO SCRIPT DE SUPERUSUÁRIO
 RUN printf 'import os\n\
 import django\n\
 from django.contrib.auth import get_user_model\n\
@@ -41,31 +74,25 @@ if username and email and password:\n\
         if not User.objects.filter(username=username).exists():\n\
             print(f"Criando superusuario: {username}")\n\
             User.objects.create_superuser(username=username, email=email, password=password)\n\
-        else:\n\
-            print(f"Superusuario {username} ja existe.")\n\
     except IntegrityError:\n\
-        print(f"Aviso: O usuario {username} ja existia. Continuando...")\n\
-else:\n\
-    print("Variaveis de superusuario nao encontradas. Pulando.")\n' > /app/create_superuser.py
+        print("Aviso: Usuario ja existe. Continuando.")\n' > /app/create_superuser.py
 
-# 8. CRIAÇÃO DO ENTRYPOINT (O Script de Arranque)
-#    Criado internamente para garantir quebras de linha Linux (\n)
+# 9. CRIAÇÃO DO ENTRYPOINT (Atualizado com o fix_db.py)
 RUN printf '#!/bin/sh\n\
 set -e\n\
-echo "Applying database migrations..."\n\
+echo "1. Checking Database Integrity..."\n\
+python fix_db.py\n\
+echo "2. Applying migrations..."\n\
 python manage.py migrate\n\
-echo "Checking for superuser creation..."\n\
+echo "3. Checking Superuser..."\n\
 python create_superuser.py\n\
-echo "Collecting static files..."\n\
+echo "4. Collecting statics..."\n\
 python manage.py collectstatic --noinput\n\
-echo "Starting Gunicorn..."\n\
+echo "5. Starting Server..."\n\
 exec gunicorn core.wsgi:application --bind 0.0.0.0:8000\n' > /app/entrypoint.sh
 
-# 9. Permissões de Execução
 RUN chmod +x /app/entrypoint.sh
 
-# 10. Exposição da Porta
+# 10. Exposição e Comando
 EXPOSE 8000
-
-# 11. Comando Padrão
 CMD ["/app/entrypoint.sh"]

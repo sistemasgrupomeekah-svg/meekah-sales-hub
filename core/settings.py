@@ -135,3 +135,8 @@ else:
 
     # O 'STATIC_ROOT' local não é mais tão relevante, mas é bom tê-lo
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles_prod')
+
+    # Domínios confiáveis
+    CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https' )

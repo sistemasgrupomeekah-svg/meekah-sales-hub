@@ -277,7 +277,7 @@ def dashboard_graficos(request):
         'query_data_fim': request.GET.get('data_fim', default_end_str),
         'meta_data_list': meta_data_list,
     }
-    return render(request, 'dashboard.html', context)
+    return render(request, 'home.html', context)
 
 @login_required
 def lista_vendas(request):

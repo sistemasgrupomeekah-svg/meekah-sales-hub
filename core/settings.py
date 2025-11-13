@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import environ 
-# import dj_database_url # (Não é necessário, o django-environ já o inclui)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(
@@ -12,13 +11,17 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 SECRET_KEY = env('DJANGO_SECRET_KEY')
 
-# --- (ATUALIZADO) DEBUG e ALLOWED_HOSTS ---
-# Lê o DEBUG do .env. Se não existir, assume 'False' (Produção)
-DEBUG = env.bool('DEBUG', default=False)
+# --- (ATUALIZADO) DEBUG, ALLOWED_HOSTS e CSRF ---
+# Lê o DEBUG do .env. Se não encontrar, assume 'False' (Produção)
+DEBUG = env.bool('DJANGO_DEBUG', default=False)
 
 # Lê os hosts do .env. Em produção, deve ser:
 # ALLOWED_HOSTS=subdominio.awsapprunner.com,meudominio.com
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
+
+# Lista de origens confiáveis para CSRF (Necessário para o App Runner / HTTPS)
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+
 # Se DEBUG=True, adiciona o localhost para facilitar
 if DEBUG:
     ALLOWED_HOSTS.extend(['localhost', '127.0.0.1'])
@@ -32,13 +35,17 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    # Apps do Projeto
     'common.apps.CommonConfig',
     'comissoes.apps.ComissoesConfig',
     'vendas',
-    'storages',
-    'django.contrib.humanize',
     
+    # Terceiros
+    'storages', 
+    'django.contrib.humanize', 
 ]
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -48,7 +55,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
 ROOT_URLCONF = 'core.urls'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -64,9 +73,10 @@ TEMPLATES = [
         },
     },
 ]
+
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# --- (ATUALIZADO) Banco de Dados ---
+# --- Banco de Dados ---
 # Lê o 'DATABASE_URL' do .env (ex: postgres://user:pass@host/db)
 # Se não encontrar, usa o sqlite3 local (para desenvolvimento)
 DATABASES = {
@@ -90,20 +100,22 @@ USE_I18N = True
 USE_L10N = True 
 USE_TZ = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Login
 LOGIN_URL = 'login'
 
-# --- (ATUALIZADO) Configuração de Ficheiros Estáticos (CSS, JS) e Mídia (Uploads) ---
+# --- Configuração de Ficheiros Estáticos (CSS, JS) e Mídia (Uploads) ---
 
 if DEBUG:
     # --- MODO DESENVOLVIMENTO (DEBUG=True) ---
-    # (Servindo localmente, como estava antes)
     
     STATIC_URL = 'static/'
     STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static'),]
-    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # Pasta para 'collectstatic' local
+    # Pasta onde o collectstatic coloca os ficheiros localmente
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
     
     MEDIA_URL = '/media/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'media') # Onde os uploads locais ficam
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media') 
 
 else:
     # --- MODO PRODUÇÃO (DEBUG=False) ---
@@ -113,30 +125,27 @@ else:
     AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME', default='us-east-2') # Boa prática definir região
     
     # 2. Configurações do S3
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
     AWS_S3_OBJECT_PARAMETERS = {
         'CacheControl': 'max-age=86400', # Cache de 1 dia
     }
-    AWS_DEFAULT_ACL = env('AWS_DEFAULT_ACL', default=None) # Permite que os ficheiros sejam vistos publicamente
-    AWS_QUERYSTRING_AUTH = False # Remove URLs assinadas (mais limpo)
+    
+    # Lê do .env; se não encontrar, usa None como padrão (recomendado)
+    AWS_DEFAULT_ACL = env('AWS_DEFAULT_ACL', default=None)
+    
+    AWS_QUERYSTRING_AUTH = False 
 
-    # 3. ESTÁTICOS (CSS/JS - ficheiros da aplicação)
-    # Define a pasta "raiz" dentro do S3 para o 'collectstatic'
+    # 3. ESTÁTICOS (CSS/JS)
     AWS_LOCATION = 'static'
     STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
     
-    # 4. MÍDIA (Uploads do utilizador - comprovativos, contratos, etc.)
-    # Usamos um Storage customizado (ver Ficheiro 2) para os colocar na pasta /media/
+    # 4. MÍDIA (Uploads)
+    # Usa o storage customizado em vendas/storage_backends.py
     DEFAULT_FILE_STORAGE = 'vendas.storage_backends.MediaStorage'
     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
 
-    # O 'STATIC_ROOT' local não é mais tão relevante, mas é bom tê-lo
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles_prod')
-
-    # Domínios confiáveis
-    CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
-
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https' )

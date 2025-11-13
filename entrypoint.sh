@@ -14,3 +14,7 @@ echo "Collecting static files..."
 # 3. Inicia o Servidor Gunicorn
 echo "Starting Gunicorn server..."
 exec gunicorn core.wsgi:application --bind 0.0.0.0:8000
+
+# 4. Cria superuser
+echo "Creating superuser (if env vars present)..."
+/usr/local/bin/python create_superuser.py

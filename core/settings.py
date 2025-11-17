@@ -126,26 +126,27 @@ else:
     AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME')
     AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME', default='us-east-2')
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
     
     # 2. Configurações do S3
-    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com'
     AWS_S3_OBJECT_PARAMETERS = {
         'CacheControl': 'max-age=86400', # Cache de 1 dia
     }
     
     # Lê do .env; se não encontrar, usa None como padrão (recomendado)
-    # AWS_DEFAULT_ACL = env('AWS_DEFAULT_ACL', default=None)
+    AWS_DEFAULT_ACL = env('AWS_DEFAULT_ACL', default=None)
     
     AWS_QUERYSTRING_AUTH = False 
 
     # 3. ESTÁTICOS (CSS/JS)
     AWS_LOCATION = 'static'
-    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-    STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
+    STATICFILES_STORAGE = "storages.backends.s3boto3.S3StaticStorage"
+    STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/"
     
     # 4. MÍDIA (Uploads)
     # Usa o storage customizado em vendas/storage_backends.py
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/"
 
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles_prod')

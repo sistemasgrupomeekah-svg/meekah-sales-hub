@@ -8,6 +8,8 @@ echo "Applying database migrations..."
 /usr/local/bin/python manage.py migrate
 
 # 2. Executa o Collectstatic (para o S3)
+echo "Bucket: $AWS_STORAGE_BUCKET_NAME"
+echo "Region: $AWS_S3_REGION_NAME"
 echo "Collecting static files..."
 /usr/local/bin/python manage.py collectstatic --noinput
 

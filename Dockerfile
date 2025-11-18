@@ -82,4 +82,4 @@ if username and email and password:\n\
 
 # 9. Exposição e Comando
 EXPOSE 8000
-CMD ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]

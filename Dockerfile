@@ -15,14 +15,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 5. Copia o Código
 COPY . .
 
+# 5.1. Dar permissão ao entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # 6. Correção de formatação (Windows -> Linux)
 RUN apt-get update && apt-get install -y dos2unix && \
     dos2unix /app/manage.py && \
+    dos2unix /app/entrypoint.sh && \
     chmod +x /app/manage.py && \
     rm -rf /var/lib/apt/lists/*
 
 # 7. CRIAÇÃO DO SCRIPT DE CORREÇÃO DE BANCO (O SALVADOR)
-#    Este script verifica se as tabelas faltam e limpa o histórico para forçar a criação.
 RUN printf 'import os\n\
 import django\n\
 from django.db import connection\n\
@@ -77,22 +80,6 @@ if username and email and password:\n\
     except IntegrityError:\n\
         print("Aviso: Usuario ja existe. Continuando.")\n' > /app/create_superuser.py
 
-# 9. CRIAÇÃO DO ENTRYPOINT (Atualizado com o fix_db.py)
-RUN printf '#!/bin/sh\n\
-set -e\n\
-echo "1. Checking Database Integrity..."\n\
-python fix_db.py\n\
-echo "2. Applying migrations..."\n\
-python manage.py migrate\n\
-echo "3. Checking Superuser..."\n\
-python create_superuser.py\n\
-echo "4. Collecting statics..."\n\
-python manage.py collectstatic --noinput\n\
-echo "5. Starting Server..."\n\
-exec gunicorn core.wsgi:application --bind 0.0.0.0:8000\n' > /app/entrypoint.sh
-
-RUN chmod +x /app/entrypoint.sh
-
-# 10. Exposição e Comando
+# 9. Exposição e Comando
 EXPOSE 8000
 CMD ["/app/entrypoint.sh"]

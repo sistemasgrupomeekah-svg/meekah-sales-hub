@@ -141,6 +141,8 @@ if DEBUG:
 
 else:
     # --- MODO PRODUÇÃO (DEBUG=False) ---
+    print("✅ Configurando S3 STORAGE", file=sys.stderr)
+    
     AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME')
@@ -150,9 +152,15 @@ else:
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
 
-    # Caminhos de static e media no bucket
-    STATICFILES_STORAGE = "core.storages.StaticStorage"
-    DEFAULT_FILE_STORAGE = "core.storages.MediaStorage"
+    # ✅ NOVA CONFIGURAÇÃO (Django 4.2+)
+    STORAGES = {
+        "default": {
+            "BACKEND": "core.storages.MediaStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "core.storages.StaticStorage",
+        },
+    }
 
     # URLs públicas para cada tipo
     STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
@@ -160,3 +168,7 @@ else:
 
     # Local temporário dentro do container
     STATIC_ROOT = "/app/staticfiles_prod"
+    
+    print(f"🔍 STORAGES configurado", file=sys.stderr)
+    print(f"🔍 STATIC_URL: {STATIC_URL}", file=sys.stderr)
+    print(f"🔍 MEDIA_URL: {MEDIA_URL}", file=sys.stderr)

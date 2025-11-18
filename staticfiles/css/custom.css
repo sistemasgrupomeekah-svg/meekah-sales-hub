@@ -98,3 +98,73 @@ h1, h2, h3, h4, h5, h6 {
     color: #03889a !important; /* Cor primária */
     font-weight: 700;
 }
+
+/* * 5. CORREÇÃO DE LEITURA DOS STATUS (Badges)
+ * Força o texto para branco em todos os badges, exceto no 'warning' (amarelo).
+*/
+.badge {
+    /* Define o branco como cor padrão para todos os badges */
+    color: #FFFFFF !important; 
+    font-weight: 500; /* Deixa a fonte um pouco mais leve */
+}
+
+/* * Sobrescreve APENAS o 'warning' (amarelo) para ter texto escuro,
+ * como já tínhamos feito.
+*/
+.badge.bg-warning {
+    color: #333333 !important;
+}
+
+.navbar-nav .nav-link.disabled {
+    color: #333333 !important;
+    opacity: 1 !important; /* Garante que não fica transparente */
+}
+
+/* * 7. MICRO-INTERAÇÕES (Hover)
+ */
+
+/* Transição suave para todos os elementos */
+.btn, .card, .nav-tabs .nav-link, tbody tr {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Efeito "Levantar" nos Cards e Linhas de Tabela */
+.card:hover,
+#tabelaMetas tbody tr:hover,
+#tabelaVendas tbody tr:hover,
+#tabelaLotes tbody tr:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,.07) !important;
+}
+
+/* Efeito de "hover" mais suave nos botões */
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(3, 136, 154, 0.3); /* Sombra na cor do botão */
+}
+.btn-secondary:hover,
+.btn-outline-secondary:hover {
+    transform: translateY(-2px);
+}
+
+/* Efeito de "hover" nas abas de navegação */
+.nav-tabs .nav-link:hover {
+    transform: translateY(-2px);
+    color: #03889a !important; /* Cor primária */
+}
+
+/* Remove a regra global 'nowrap' e aplica apenas o alinhamento vertical */
+.dataTable-table th,
+.dataTable-table td {
+    vertical-align: middle; /* Alinha verticalmente os badges e o texto */
+}
+
+/* Classes de alinhamento reutilizáveis */
+.table .col-num {
+    text-align: right;
+    white-space: nowrap; /* Impede quebra de linha em números/datas */
+}
+.table .col-center {
+    text-align: center;
+    white-space: nowrap; /* Impede quebra de linha em status */
+}

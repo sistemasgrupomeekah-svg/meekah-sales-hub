@@ -1,30 +1,42 @@
 import os
+import sys
 from pathlib import Path
 import environ
-from storages.backends.s3boto3 import S3Boto3Storage  # Necessário para o custom storage
-
-# --- Storage customizado para mídia no S3 ---
-class S3MediaStorage(S3Boto3Storage):
-    location = "media"
-    default_acl = "private"
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env(
-    DEBUG=(bool, False)
-)
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+env = environ.Env(DEBUG=(bool, False))
+
+# 🔧 SÓ LÊ O .ENV SE NÃO ESTIVER EM PRODUÇÃO
+# Detecta se está rodando no AWS (App Runner, ECS, Lambda, etc.)
+if not os.environ.get('AWS_EXECUTION_ENV') and not os.environ.get('AWS_REGION'):
+    env_file = os.path.join(BASE_DIR, '.env')
+    if os.path.exists(env_file):
+        environ.Env.read_env(env_file)
+        print("📄 Lendo .env local", file=sys.stderr)
+    else:
+        print("⚠️ Arquivo .env não encontrado", file=sys.stderr)
+else:
+    print("☁️ Ambiente AWS detectado - usando variáveis de ambiente", file=sys.stderr)
 
 SECRET_KEY = env('DJANGO_SECRET_KEY')
 
 # --- DEBUG / HOSTS / CSRF ---
 DEBUG = env.bool('DJANGO_DEBUG', default=False)
+
+# 🔍 DEBUG TEMPORÁRIO
+print(f"🔍 DEBUG: {DEBUG}", file=sys.stderr)
+print(f"🔍 DJANGO_DEBUG env var: {os.environ.get('DJANGO_DEBUG')}", file=sys.stderr)
+print(f"🔍 AWS_STORAGE_BUCKET_NAME: {os.environ.get('AWS_STORAGE_BUCKET_NAME')}", file=sys.stderr)
+
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 if DEBUG:
     ALLOWED_HOSTS.extend(['localhost', '127.0.0.1'])
+    print("⚠️ MODO DESENVOLVIMENTO - USANDO STORAGE LOCAL", file=sys.stderr)
+else:
+    print("✅ MODO PRODUÇÃO - USANDO S3", file=sys.stderr)
 
 
 # --- APPS ---
@@ -128,7 +140,7 @@ if DEBUG:
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 else:
-    # --- MODO PRODUÇÃO (DEBUG=False) ---  
+    # --- MODO PRODUÇÃO (DEBUG=False) ---
     AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME')

@@ -11,6 +11,13 @@ from django.utils import timezone
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
+
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse
+from django.conf import settings
+
 import json, csv, openpyxl
 from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
@@ -586,3 +593,63 @@ def export_vendas_xlsx(request):
 # SEÇÃO 7: VIEWS DE GESTÃO DE METAS (MOVIDAS PARA 'comissoes/views.py')
 # ---
 # (As views 'lista_metas', 'criar_meta', 'editar_meta', 'apagar_meta' foram MOVIDAS)
+
+@csrf_exempt
+def test_s3(request):
+    """View temporária para testar S3 - REMOVER EM PRODUÇÃO"""
+    
+    output = []
+    output.append("<h1>🧪 Teste de Configuração S3</h1>")
+    output.append(f"<p><strong>DEBUG:</strong> {settings.DEBUG}</p>")
+    output.append(f"<p><strong>Storage Backend:</strong> {default_storage.__class__.__name__}</p>")
+    output.append(f"<p><strong>Storage Module:</strong> {default_storage.__class__.__module__}</p>")
+    
+    if hasattr(default_storage, 'location'):
+        output.append(f"<p><strong>Location:</strong> {default_storage.location}</p>")
+    
+    if hasattr(default_storage, 'bucket_name'):
+        output.append(f"<p><strong>Bucket:</strong> {default_storage.bucket_name}</p>")
+    
+    output.append("<hr>")
+    output.append("<h2>📤 Testando Upload...</h2>")
+    
+    try:
+        # Testar upload
+        test_content = f'Teste S3 - {settings.TIME_ZONE}'.encode()
+        path = default_storage.save('test/teste_view.txt', ContentFile(test_content))
+        output.append(f"<p>✅ <strong>Arquivo salvo:</strong> {path}</p>")
+        
+        # Testar URL
+        url = default_storage.url(path)
+        output.append(f"<p>🔗 <strong>URL:</strong> <a href='{url}' target='_blank'>{url}</a></p>")
+        
+        # Testar leitura
+        content = default_storage.open(path).read()
+        output.append(f"<p>📖 <strong>Conteúdo lido:</strong> {content}</p>")
+        
+        # Verificar se existe
+        exists = default_storage.exists(path)
+        output.append(f"<p>🔍 <strong>Arquivo existe:</strong> {exists}</p>")
+        
+        # Limpar
+        default_storage.delete(path)
+        output.append("<p>🗑️ <strong>Arquivo deletado com sucesso</strong></p>")
+        
+        output.append("<hr>")
+        output.append("<h2>✅ TESTE CONCLUÍDO COM SUCESSO!</h2>")
+        
+    except Exception as e:
+        output.append(f"<p style='color:red;'>❌ <strong>ERRO:</strong> {str(e)}</p>")
+        import traceback
+        output.append(f"<pre>{traceback.format_exc()}</pre>")
+    
+    # Informações adicionais
+    output.append("<hr>")
+    output.append("<h2>ℹ️ Variáveis de Ambiente</h2>")
+    import os
+    env_vars = ['AWS_STORAGE_BUCKET_NAME', 'AWS_S3_REGION_NAME', 'DJANGO_DEBUG', 'AWS_EXECUTION_ENV']
+    for var in env_vars:
+        value = os.environ.get(var, 'NÃO DEFINIDA')
+        output.append(f"<p><strong>{var}:</strong> {value}</p>")
+    
+    return HttpResponse("\n".join(output))

@@ -267,8 +267,8 @@ def dashboard_graficos(request):
 
     context = {
         'perms': perms,
-        'kpi_total_vendas': kpis.get('total_vendas') or 0,
-        'kpi_ticket_medio': kpis.get('ticket_medio') or 0,
+        'kpi_total_vendas': round(kpis.get('total_vendas') or 0, 2),
+        'kpi_ticket_medio': round(kpis.get('ticket_medio') or 0, 2),
         'kpi_contagem_vendas': kpis.get('contagem_vendas') or 0,
         
         'vendas_por_vendedor_json': json.dumps(vendas_por_vendedor_payload),

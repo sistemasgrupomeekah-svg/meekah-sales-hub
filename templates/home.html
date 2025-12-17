@@ -121,7 +121,7 @@
         <div class="card shadow-sm">
             <div class="card-body">
                 <h6 class="card-title text-muted">Ticket Médio</h6>
-                <h3 class="card-text">R$ {{ kpi_ticket_medio|intcomma }}</h3>
+                <h3 class="card-text">R$ {{ kpi_ticket_medio|floatformat:2|intcomma }}</h3>
             </div>
         </div>
     </div>
